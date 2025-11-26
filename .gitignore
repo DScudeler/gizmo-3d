@@ -37,3 +37,8 @@ ui_*.h
 # Testing
 Testing/
 CTestTestfile.cmake
+
+# AI assistant
+.claude/
+CLAUDE.md
+.qmlls.ini

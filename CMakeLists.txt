@@ -18,18 +18,15 @@ find_package(Qt6 REQUIRED COMPONENTS
     Quick
     Quick3D
     Test
+    QuickTest
 )
 
 # Set Qt6 QML policy QTP0001 after finding Qt
+# This sets the default resource prefix to /qt/qml/ for automatic QML module discovery
 if(COMMAND qt_policy)
     qt_policy(SET QTP0001 NEW)
 endif()
-
-# Set QML import path for development
-set(QML_IMPORT_PATH
-    "${CMAKE_BINARY_DIR}/src"
-    CACHE STRING "Qt Creator QML import paths" FORCE
-)
+set(QT_QML_GENERATE_QMLLS_INI ON)
 
 # Add subdirectories
 add_subdirectory(src)

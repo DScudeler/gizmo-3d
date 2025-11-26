@@ -7,6 +7,7 @@ qt_add_qml_module(gizmo3d_example
     VERSION 1.0
     QML_FILES
         main.qml
+        SimpleController.qml
 )
 
 target_link_libraries(gizmo3d_example PRIVATE
@@ -15,10 +16,4 @@ target_link_libraries(gizmo3d_example PRIVATE
     Qt6::Quick
     Qt6::Quick3D
     gizmo3d
-    gizmo3dplugin
-)
-
-# Set QML import path to find the Gizmo3D module
-target_compile_definitions(gizmo3d_example PRIVATE
-    QML_IMPORT_PATH="${CMAKE_BINARY_DIR}/src"
 )

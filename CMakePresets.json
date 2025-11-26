@@ -14,9 +14,6 @@
       "cacheVariables": {
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
         "CMAKE_COLOR_DIAGNOSTICS": "ON"
-      },
-      "environment": {
-        "LD_LIBRARY_PATH": "/usr/lib/x86_64-linux-gnu"
       }
     },
     {
@@ -25,8 +22,7 @@
       "description": "Debug build with full symbols",
       "inherits": "base",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "CMAKE_CXX_FLAGS_DEBUG": "-g -O0"
+        "CMAKE_BUILD_TYPE": "Debug"
       }
     },
     {
@@ -35,8 +31,7 @@
       "description": "Release build with optimizations",
       "inherits": "base",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release",
-        "CMAKE_CXX_FLAGS_RELEASE": "-O3 -DNDEBUG"
+        "CMAKE_BUILD_TYPE": "Release"
       }
     },
     {
@@ -45,8 +40,7 @@
       "description": "Release build with debug symbols",
       "inherits": "base",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
-        "CMAKE_CXX_FLAGS_RELWITHDEBINFO": "-O2 -g -DNDEBUG"
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
       }
     }
   ],
@@ -74,6 +68,7 @@
     {
       "name": "debug",
       "displayName": "Debug Tests",
+      "description": "Debug tests with X11 rendering. Environment: QT_QPA_PLATFORM=xcb (3D rendering support), LD_LIBRARY_PATH (Snap workaround), GTK_PATH/GIO_MODULE_DIR cleared (Snap workaround)",
       "configurePreset": "debug",
       "output": {
         "outputOnFailure": true
@@ -81,15 +76,12 @@
       "execution": {
         "noTestsAction": "error",
         "stopOnFailure": false
-      },
-      "environment": {
-        "QT_QPA_PLATFORM": "offscreen",
-        "LD_LIBRARY_PATH": "/usr/lib/x86_64-linux-gnu"
       }
     },
     {
       "name": "release",
       "displayName": "Release Tests",
+      "description": "Release tests with X11 rendering. Environment: QT_QPA_PLATFORM=xcb (3D rendering support), LD_LIBRARY_PATH (Snap workaround), GTK_PATH/GIO_MODULE_DIR cleared (Snap workaround)",
       "configurePreset": "release",
       "output": {
         "outputOnFailure": true
@@ -97,10 +89,6 @@
       "execution": {
         "noTestsAction": "error",
         "stopOnFailure": false
-      },
-      "environment": {
-        "QT_QPA_PLATFORM": "offscreen",
-        "LD_LIBRARY_PATH": "/usr/lib/x86_64-linux-gnu"
       }
     }
   ],

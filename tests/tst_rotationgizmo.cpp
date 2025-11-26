@@ -2,8 +2,10 @@
 #include <QQmlEngine>
 #include <QQmlComponent>
 #include <QQuickItem>
+#include <QQuaternion>
+#include <QtPlugin>
 
-class TestTranslationGizmo : public QObject
+class TestRotationGizmo : public QObject
 {
     Q_OBJECT
 
@@ -25,35 +27,38 @@ private:
     QQmlEngine *engine = nullptr;
 };
 
-void TestTranslationGizmo::initTestCase()
+void TestRotationGizmo::initTestCase()
 {
     engine = new QQmlEngine(this);
+
+    // Add import path for the Gizmo3D module
+    engine->addImportPath(QCoreApplication::applicationDirPath() + "/../src");
 }
 
-void TestTranslationGizmo::cleanupTestCase()
+void TestRotationGizmo::cleanupTestCase()
 {
     delete engine;
     engine = nullptr;
 }
 
-void TestTranslationGizmo::init()
+void TestRotationGizmo::init()
 {
     // Setup before each test
 }
 
-void TestTranslationGizmo::cleanup()
+void TestRotationGizmo::cleanup()
 {
     // Cleanup after each test
 }
 
-void TestTranslationGizmo::testComponentCreation()
+void TestRotationGizmo::testComponentCreation()
 {
     QQmlComponent component(engine);
     component.setData(R"qml(
         import QtQuick
         import Gizmo3D
 
-        TranslationGizmo {
+        RotationGizmo {
             width: 800
             height: 600
         }
@@ -70,16 +75,16 @@ void TestTranslationGizmo::testComponentCreation()
     delete object;
 }
 
-void TestTranslationGizmo::testProperties()
+void TestRotationGizmo::testProperties()
 {
     QQmlComponent component(engine);
     component.setData(R"qml(
         import QtQuick
         import Gizmo3D
 
-        TranslationGizmo {
+        RotationGizmo {
             gizmoSize: 150.0
-            activeAxis: 1
+            activeAxis: 2
         }
     )qml", QUrl());
 
@@ -96,21 +101,21 @@ void TestTranslationGizmo::testProperties()
     // Test activeAxis property
     QVariant activeAxis = object->property("activeAxis");
     QVERIFY(activeAxis.isValid());
-    QCOMPARE(activeAxis.toInt(), 1);
+    QCOMPARE(activeAxis.toInt(), 2);
 
     delete object;
 }
 
-void TestTranslationGizmo::testGizmoSize()
+void TestRotationGizmo::testGizmoSize()
 {
     QQmlComponent component(engine);
     component.setData(R"qml(
         import QtQuick
         import Gizmo3D
 
-        TranslationGizmo {
+        RotationGizmo {
             id: gizmo
-            gizmoSize: 100.0
+            gizmoSize: 80.0
         }
     )qml", QUrl());
 
@@ -120,16 +125,16 @@ void TestTranslationGizmo::testGizmoSize()
     QVERIFY(object != nullptr);
 
     // Test default size
-    QCOMPARE(object->property("gizmoSize").toReal(), 100.0);
+    QCOMPARE(object->property("gizmoSize").toReal(), 80.0);
 
     // Test size change
-    object->setProperty("gizmoSize", 200.0);
-    QCOMPARE(object->property("gizmoSize").toReal(), 200.0);
+    object->setProperty("gizmoSize", 120.0);
+    QCOMPARE(object->property("gizmoSize").toReal(), 120.0);
 
     delete object;
 }
 
-void TestTranslationGizmo::testTargetNodeBinding()
+void TestRotationGizmo::testTargetNodeBinding()
 {
     QQmlComponent component(engine);
     component.setData(R"qml(
@@ -144,9 +149,10 @@ void TestTranslationGizmo::testTargetNodeBinding()
             Node {
                 id: targetNode
                 position: Qt.vector3d(10, 20, 30)
+                eulerRotation: Qt.vector3d(45, 90, 0)
             }
 
-            TranslationGizmo {
+            RotationGizmo {
                 id: gizmo
                 targetNode: targetNode
             }
@@ -175,7 +181,7 @@ void TestTranslationGizmo::testTargetNodeBinding()
     delete object;
 }
 
-void TestTranslationGizmo::testSignals()
+void TestRotationGizmo::testSignals()
 {
     QQmlComponent component(engine);
     component.setData(R"qml(
@@ -189,7 +195,7 @@ void TestTranslationGizmo::testSignals()
             property int startedCount: 0
             property int deltaCount: 0
             property int endedCount: 0
-            property real lastDelta: 0
+            property real lastAngleDelta: 0
             property int lastAxis: 0
 
             Node {
@@ -197,21 +203,21 @@ void TestTranslationGizmo::testSignals()
                 position: Qt.vector3d(0, 0, 0)
             }
 
-            TranslationGizmo {
+            RotationGizmo {
                 id: gizmo
                 targetNode: targetNode
 
-                onAxisTranslationStarted: function(axis) {
+                onRotationStarted: function(axis) {
                     parent.startedCount++
                     parent.lastAxis = axis
                 }
 
-                onAxisTranslationDelta: function(axis, transformMode, delta, snapActive) {
+                onRotationDelta: function(axis, angleDegrees, snapActive) {
                     parent.deltaCount++
-                    parent.lastDelta = delta
+                    parent.lastAngleDelta = angleDegrees
                 }
 
-                onAxisTranslationEnded: function(axis) {
+                onRotationEnded: function(axis) {
                     parent.endedCount++
                 }
             }
@@ -231,7 +237,7 @@ void TestTranslationGizmo::testSignals()
     delete object;
 }
 
-void TestTranslationGizmo::testTrivialController()
+void TestRotationGizmo::testTrivialController()
 {
     QQmlComponent component(engine);
     component.setData(R"qml(
@@ -242,43 +248,29 @@ void TestTranslationGizmo::testTrivialController()
         Item {
             property alias gizmo: gizmo
             property alias target: targetNode
-            property vector3d dragStartPos: Qt.vector3d(0, 0, 0)
+            property quaternion dragStartRot: Qt.quaternion(1, 0, 0, 0)
 
             Node {
                 id: targetNode
-                position: Qt.vector3d(5, 10, 15)
+                position: Qt.vector3d(0, 0, 0)
+                rotation: Qt.quaternion(1, 0, 0, 0)
             }
 
-            TranslationGizmo {
+            RotationGizmo {
                 id: gizmo
                 targetNode: targetNode
 
                 // Trivial controller implementation
-                onAxisTranslationStarted: function(axis) {
-                    parent.dragStartPos = targetNode.position
+                onRotationStarted: function(axis) {
+                    parent.dragStartRot = targetNode.rotation
                 }
 
-                onAxisTranslationDelta: function(axis, transformMode, delta, snapActive) {
-                    // Simple world-mode controller for testing
-                    if (axis === 1) {
-                        targetNode.position = Qt.vector3d(parent.dragStartPos.x + delta, parent.dragStartPos.y, parent.dragStartPos.z)
-                    } else if (axis === 2) {
-                        targetNode.position = Qt.vector3d(parent.dragStartPos.x, parent.dragStartPos.y + delta, parent.dragStartPos.z)
-                    } else if (axis === 3) {
-                        targetNode.position = Qt.vector3d(parent.dragStartPos.x, parent.dragStartPos.y, parent.dragStartPos.z + delta)
-                    }
-                }
-
-                onPlaneTranslationStarted: function(plane) {
-                    parent.dragStartPos = targetNode.position
-                }
-
-                onPlaneTranslationDelta: function(plane, transformMode, delta, snapActive) {
-                    targetNode.position = Qt.vector3d(
-                        parent.dragStartPos.x + delta.x,
-                        parent.dragStartPos.y + delta.y,
-                        parent.dragStartPos.z + delta.z
-                    )
+                onRotationDelta: function(axis, transformMode, angleDegrees, snapActive) {
+                    let axisVec = axis === 1 ? Qt.vector3d(1, 0, 0)
+                                : axis === 2 ? Qt.vector3d(0, 1, 0)
+                                : Qt.vector3d(0, 0, 1)
+                    let deltaQuat = GizmoMath.quaternionFromAxisAngle(axisVec, angleDegrees)
+                    targetNode.rotation = deltaQuat.times(parent.dragStartRot)
                 }
             }
         }
@@ -295,25 +287,25 @@ void TestTranslationGizmo::testTrivialController()
     QObject *target = object->property("target").value<QObject*>();
     QVERIFY(target != nullptr);
 
-    // Verify initial position
-    QVector3D initialPos = target->property("position").value<QVector3D>();
-    QCOMPARE(initialPos, QVector3D(5, 10, 15));
+    // Verify initial rotation (identity quaternion)
+    QQuaternion initialRot = target->property("rotation").value<QQuaternion>();
+    QCOMPARE(initialRot, QQuaternion(1, 0, 0, 0));
 
-    // Simulate axis translation signal (X-axis in world mode)
+    // Simulate rotation signal (Z-axis in world mode)
     // GizmoEnums.TransformMode.World = 0, GizmoEnums.TransformMode.Local = 1
-    QMetaObject::invokeMethod(gizmo, "axisTranslationStarted", Q_ARG(int, 1));
-    QMetaObject::invokeMethod(gizmo, "axisTranslationDelta",
-        Q_ARG(int, 1),
+    QMetaObject::invokeMethod(gizmo, "rotationStarted", Q_ARG(int, 3));
+    QMetaObject::invokeMethod(gizmo, "rotationDelta",
+        Q_ARG(int, 3),
         Q_ARG(int, 0),  // TransformMode.World
-        Q_ARG(qreal, 3.0),
+        Q_ARG(qreal, 45.0),
         Q_ARG(bool, false));
 
-    // Verify position changed
-    QVector3D newPos = target->property("position").value<QVector3D>();
-    QCOMPARE(newPos, QVector3D(8, 10, 15));
+    // Verify rotation changed (should no longer be identity)
+    QQuaternion newRot = target->property("rotation").value<QQuaternion>();
+    QVERIFY(newRot != QQuaternion(1, 0, 0, 0));
 
     delete object;
 }
 
-QTEST_MAIN(TestTranslationGizmo)
-#include "tst_translationgizmo.moc"
+QTEST_MAIN(TestRotationGizmo)
+#include "tst_rotationgizmo.moc"

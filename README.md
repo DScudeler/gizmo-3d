@@ -1,58 +1,74 @@
-# Gizmo3D - Translation Gizmo for Qt Quick 3D
+# Gizmo3D - Qt Quick 3D Transformation Gizmos
 
-A QML-based 3D transformation gizmo for Qt Quick 3D applications, featuring Canvas-based 2D rendering of 3D arrows with View3D coordinate mapping.
+A pure QML library providing interactive 3D transformation gizmos for Qt Quick 3D applications. Manipulate 3D objects with translation, rotation, and scale handles using Canvas-based 2D rendering and View3D coordinate mapping.
 
-## Project Structure
-
-```
-gizmo-3d/
-├── CMakeLists.txt           # Root CMake configuration
-├── CMakePresets.json        # CMake presets for Ninja builds
-├── src/                     # Gizmo3D QML module library
-│   ├── CMakeLists.txt
-│   └── TranslationGizmo.qml
-├── examples/                # Example application
-│   ├── CMakeLists.txt
-│   ├── main.cpp
-│   └── main.qml
-├── tests/                   # Qt Test suite
-│   ├── CMakeLists.txt
-│   └── tst_translationgizmo.cpp
-└── run_example.sh           # Launcher script (fixes snap issues)
-```
+![screenshot](doc/images/screenshot.png)
 
 ## Features
 
-- **Translation Gizmo**: 3D arrow handles rendered using 2D Canvas
-- **Screen-Space Parameterized**: Gizmo size adapts to screen dimensions
-- **View3D Integration**: Uses `mapFromScene`/`mapToScene` for 3D displacement
-- **Color-Coded Axes**: X=Red, Y=Green, Z=Blue
-- **Mouse Interaction**: Click and drag arrows to translate objects
-- **Static QML Module**: Compiled as a reusable library
+- **TranslationGizmo**: Axis-constrained arrows and planar handles for 3D movement
+- **RotationGizmo**: Circular handles for axis-constrained rotation with angle visualization
+- **ScaleGizmo**: Square handles for axis-constrained and uniform scaling
+- **GlobalGizmo**: Combined interface with mode switching (translate/rotate/scale/all)
+- **World/Local Modes**: Transform relative to world axes or object's local orientation
+- **Grid Snapping**: Configurable snap increments for translation, rotation, and scale
+- **Signal-Based Architecture**: Decoupled manipulation for easy integration with external frameworks
+- **Pure QML**: No C++ dependencies, maximum portability
+
+## Quick Start
+
+```qml
+import QtQuick
+import QtQuick3D
+import Gizmo3D 1.0
+
+View3D {
+    id: view3d
+
+    Model {
+        id: myCube
+        source: "#Cube"
+    }
+
+    PerspectiveCamera { id: camera }
+}
+
+TranslationGizmo {
+    view3d: view3d
+    targetNode: myCube
+
+    property vector3d dragStartPos
+
+    onAxisTranslationStarted: dragStartPos = myCube.position
+    onAxisTranslationDelta: (axis, mode, delta, snap) => {
+        var pos = dragStartPos
+        if (axis === 1) pos.x += delta
+        else if (axis === 2) pos.y += delta
+        else if (axis === 3) pos.z += delta
+        myCube.position = pos
+    }
+}
+```
 
 ## Build Requirements
 
 - CMake 3.21+
 - Qt 6 (Core, Gui, Qml, Quick, Quick3D, Test)
 - Ninja build system
-- C++20 compiler (GCC 14.2+ or Clang equivalent)
+- C++20 compiler
 
 ## Building
 
 ### Using CMake Presets (Recommended)
 
 ```bash
-# Configure
-cmake --preset debug
-
-# Build
-cmake --build --preset debug
-
-# Test
-ctest --preset debug
-
 # Complete workflow (configure + build + test)
 cmake --workflow --preset debug
+
+# Individual steps
+cmake --preset debug              # Configure
+cmake --build --preset debug      # Build
+ctest --preset debug              # Test
 ```
 
 ### Available Presets
@@ -71,109 +87,60 @@ ctest --test-dir build
 
 ## Running the Example
 
-### From VSCode (Recommended)
-
-Use the built-in tasks (Ctrl+Shift+P → "Tasks: Run Task"):
-- **Run Example** - Launch the application with clean environment
-- **Build and Run** - Build then run in one step
-- **Run Tests** - Execute the test suite
-
-Or use F5 to debug with proper environment setup.
-
-### Using the Launcher Script
-
 ```bash
-./run_example.sh
-```
-
-This script handles the snap environment contamination issue automatically.
-
-### Direct Execution
-
-```bash
-# Unset snap environment variables first
-unset GTK_PATH GIO_MODULE_DIR
-
-# Set library path
-export LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu
-
-# Then run
+# Direct execution
 ./build/debug/examples/gizmo3d_example
 ```
 
-## Important: Snap VSCode Environment Issue
+## Integration
 
-If you're using VSCode installed via Snap, it contaminates the terminal environment with `GTK_PATH` and `GIO_MODULE_DIR` variables. This causes applications to load incompatible libraries from `/snap/core20/`, resulting in errors like:
+### CMake
 
-```
-symbol lookup error: /snap/core20/current/lib/x86_64-linux-gnu/libpthread.so.0:
-undefined symbol: __libc_pthread_init, version GLIBC_PRIVATE
-```
+```cmake
+# Add Gizmo3D as subdirectory
+add_subdirectory(path/to/gizmo-3d)
 
-### Solution: VSCode Settings Fix
-
-Add to your VSCode `settings.json` (Ctrl+Shift+P → "Preferences: Open User Settings (JSON)"):
-
-```json
-"terminal.integrated.env.linux": {
-    "GTK_PATH": null,
-    "GIO_MODULE_DIR": null
-}
+# Link to your target
+target_link_libraries(your_app PRIVATE gizmo3d)
 ```
 
-Then restart VSCode.
+### QML Import
 
-### Alternative: Shell Profile Fix
+```qml
+import Gizmo3D 1.0
 
-Add to `~/.bashrc` or `~/.profile`:
-
-```bash
-unset GTK_PATH
-unset GIO_MODULE_DIR
+TranslationGizmo { /* ... */ }
+RotationGizmo { /* ... */ }
+ScaleGizmo { /* ... */ }
+GlobalGizmo { /* ... */ }
 ```
 
-## Test Results
+## Signal-Based Architecture
 
-✅ **100% tests passed** (1/1)
-- Component creation test
-- Property binding test
-- Gizmo size configuration test
-- Target node binding test
+All gizmos emit signals instead of directly manipulating the target node. This enables:
 
-## Development
+- **Framework Integration**: Works with external scene managers
+- **Validation**: Controllers can validate/constrain transformations
+- **Undo/Redo**: Delta-from-start pattern supports command history
+- **Multi-Object**: Apply deltas to multiple selected objects
 
-### Adding New Gizmo Types
+### Signal Patterns
 
-1. Create new QML file in `src/` (e.g., `RotationGizmo.qml`)
-2. Add to `src/CMakeLists.txt` QML_FILES list
-3. Rebuild and test
+| Gizmo | Signals |
+|-------|---------|
+| TranslationGizmo | `axisTranslationStarted/Delta/Ended`, `planeTranslationStarted/Delta/Ended` |
+| RotationGizmo | `rotationStarted/Delta/Ended` |
+| ScaleGizmo | `scaleStarted/Delta/Ended` |
+| GlobalGizmo | Forwards all signals from child gizmos |
 
-### Testing
+## Documentation
 
-Tests use Qt Test framework with static plugin imports. The `Q_IMPORT_PLUGIN(Gizmo3DPlugin)` macro is required for static QML modules.
+- [Quick Start Guide](doc/getting-started/quick-start.md) - 5-minute integration tutorial
+- [API Reference](doc/api-reference/) - Complete API documentation
+- [Architecture Overview](doc/architecture/overview.md) - Design and implementation
+- [Controller Pattern](doc/user-guide/controller-pattern.md) - Signal handling patterns
+- [Troubleshooting](doc/troubleshooting/common-issues.md) - Common issues and solutions
 
 ## License
 
-[Your License Here]
-
-## Troubleshooting
-
-### "module Gizmo3D plugin not found"
-
-Ensure `QML2_IMPORT_PATH` points to the build src directory:
-```bash
-export QML2_IMPORT_PATH=/path/to/build/debug/src
-```
-
-### Snap Library Conflicts
-
-Use the provided `run_example.sh` script or unset snap environment variables as documented above.
-
-### Test Failures
-
-Run tests with proper environment:
-```bash
-ctest --preset debug
-```
-
-The test preset automatically sets `LD_LIBRARY_PATH` and `QT_QPA_PLATFORM` for headless testing.
+MIT License - See LICENSE file for details.

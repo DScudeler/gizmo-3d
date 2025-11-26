@@ -1,0 +1,285 @@
+# Transform Modes
+
+Guide to world and local coordinate modes in Gizmo3D.
+
+## Overview
+
+Gizmo3D supports two transform modes that control the orientation of manipulation axes:
+
+| Mode | Axes Aligned To | Use Case |
+|------|-----------------|----------|
+| `"world"` | Global coordinate system | Scene-relative manipulation |
+| `"local"` | Object's rotation | Object-relative manipulation |
+
+## Setting Transform Mode
+
+All gizmos accept a `transformMode` property:
+
+```qml
+TranslationGizmo {
+    view3d: myView3D
+    targetNode: myCube
+    transformMode: "world"  // or "local"
+}
+
+RotationGizmo {
+    view3d: myView3D
+    targetNode: myCube
+    transformMode: "local"
+}
+
+GlobalGizmo {
+    view3d: myView3D
+    targetNode: myCube
+    transformMode: modeSelector.currentMode
+}
+```
+
+## World Mode
+
+In world mode, gizmo axes align with the global coordinate system regardless of object rotation.
+
+```
+Global Axes (fixed):
+    Y (up)
+    │
+    │
+    └───── X (right)
+   /
+  Z (toward camera)
+```
+
+### Behavior
+
+- **X axis**: Always points in global +X direction
+- **Y axis**: Always points in global +Y direction (up)
+- **Z axis**: Always points in global +Z direction
+
+### Visual Example
+
+```
+Object rotated 45° around Y:
+
+    Y                           Y
+    │  ╱                        │
+    │ ╱  Object                 │  World Gizmo
+    │╱                          │
+    └───── X                    └───── X
+   ╱                           ╱
+  Z                           Z
+
+  Object axes are rotated     Gizmo axes stay aligned
+```
+
+### Use Cases
+
+- Moving objects in scene-relative directions
+- Aligning objects to scene grid
+- Consistent manipulation regardless of object orientation
+- Level editing with grid alignment
+
+## Local Mode
+
+In local mode, gizmo axes align with the object's current rotation.
+
+### Behavior
+
+- **X axis**: Points along object's local +X (red arrow direction)
+- **Y axis**: Points along object's local +Y (green arrow direction)
+- **Z axis**: Points along object's local +Z (blue arrow direction)
+
+### Visual Example
+
+```
+Object rotated 45° around Y:
+
+    Y   ╲
+    │    ╲  Object
+    │     ╲
+    └───── X
+   ╱
+  Z
+
+  Object axes are rotated     Gizmo follows object rotation
+    ╲ Y
+     ╲│
+      ╲
+       ╲ X
+```
+
+### Use Cases
+
+- Moving objects along their own axes
+- "Forward/backward" relative to object facing
+- Character controllers
+- Vehicle movement in facing direction
+
+## Implementation Details
+
+### Axis Calculation
+
+The gizmo computes axis directions based on transform mode:
+
+```qml
+readonly property var currentAxes: {
+    if (transformMode === "local" && targetNode) {
+        // Extract axes from target's quaternion rotation
+        return GizmoMath.getLocalAxes(targetNode.rotation)
+    } else {
+        // World axes are fixed
+        return {
+            x: Qt.vector3d(1, 0, 0),
+            y: Qt.vector3d(0, 1, 0),
+            z: Qt.vector3d(0, 0, 1)
+        }
+    }
+}
+```
+
+### Delta Signal Parameter
+
+The `transformMode` is passed in delta signals so controllers can handle it appropriately:
+
+```qml
+// Signal includes transform mode
+signal axisTranslationDelta(int axis, string transformMode, real delta, bool snapActive)
+```
+
+### Controller Handling
+
+#### World Mode Controller
+
+```qml
+onAxisTranslationDelta: function(axis, transformMode, delta, snap) {
+    // In world mode, delta is in world coordinates
+    var pos = dragStartPos
+    if (axis === 1) pos.x += delta      // World X
+    else if (axis === 2) pos.y += delta // World Y
+    else if (axis === 3) pos.z += delta // World Z
+    targetNode.position = pos
+}
+```
+
+#### Local Mode Controller
+
+```qml
+onAxisTranslationDelta: function(axis, transformMode, delta, snap) {
+    if (transformMode === "local") {
+        // Get the object's local axis in world space
+        var localAxes = GizmoMath.getLocalAxes(targetNode.rotation)
+        var axisDir
+        if (axis === 1) axisDir = localAxes.x
+        else if (axis === 2) axisDir = localAxes.y
+        else if (axis === 3) axisDir = localAxes.z
+
+        // Apply delta along local axis
+        targetNode.position = dragStartPos.plus(axisDir.times(delta))
+    } else {
+        // World mode - direct application
+        var pos = dragStartPos
+        if (axis === 1) pos.x += delta
+        else if (axis === 2) pos.y += delta
+        else if (axis === 3) pos.z += delta
+        targetNode.position = pos
+    }
+}
+```
+
+## Mode Switching UI
+
+Common pattern for toggling between modes:
+
+```qml
+Row {
+    RadioButton {
+        text: "World"
+        checked: gizmo.transformMode === "world"
+        onClicked: gizmo.transformMode = "world"
+    }
+    RadioButton {
+        text: "Local"
+        checked: gizmo.transformMode === "local"
+        onClicked: gizmo.transformMode = "local"
+    }
+}
+
+TranslationGizmo {
+    id: gizmo
+    // transformMode bound to UI selection
+}
+```
+
+### Keyboard Shortcut
+
+```qml
+Shortcut {
+    sequence: "G"  // Common shortcut in 3D software
+    onActivated: {
+        gizmo.transformMode = gizmo.transformMode === "world" ? "local" : "world"
+    }
+}
+```
+
+## Rotation in Local Mode
+
+Local mode is particularly useful for rotation:
+
+```qml
+RotationGizmo {
+    transformMode: "local"
+    // Rotation circles follow object's orientation
+}
+```
+
+### Gimbal Lock Consideration
+
+When using local mode for rotation, be aware of gimbal lock:
+
+- Rotating on one axis can align two others
+- This makes certain rotations difficult
+- Consider providing world mode as fallback
+- Or implement quaternion-based rotation UI
+
+## Scale in Local Mode
+
+For scale operations:
+
+- World mode: Scale along scene axes (can cause shearing with rotated objects)
+- Local mode: Scale along object's own axes (maintains object proportions)
+
+```qml
+ScaleGizmo {
+    transformMode: "local"  // Usually preferred for scaling
+}
+```
+
+## Visual Feedback
+
+The gizmo automatically repaints when the object rotates (in local mode):
+
+```qml
+Connections {
+    target: root.targetNode
+    enabled: root.transformMode === "local"
+    function onRotationChanged() {
+        canvas.requestPaint()
+    }
+}
+```
+
+This ensures the gizmo visually follows the object's orientation.
+
+## Best Practices
+
+1. **Default to World Mode** for general scene editing
+2. **Use Local Mode** for character/vehicle control
+3. **Provide Easy Switching** via keyboard shortcut or UI toggle
+4. **Consider Context** - some tools (like scale) often work better in local mode
+5. **Visual Indicator** - show current mode in UI to avoid confusion
+
+## See Also
+
+- [Controller Pattern](controller-pattern.md) - Signal handling patterns
+- [TranslationGizmo API](../api-reference/translation-gizmo.md)
+- [RotationGizmo API](../api-reference/rotation-gizmo.md)
+- [ScaleGizmo API](../api-reference/scale-gizmo.md)
