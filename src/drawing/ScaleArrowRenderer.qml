@@ -39,12 +39,12 @@ Item {
     )
     readonly property real halfSize: squareSize / 2
 
-    // Arrow shaft
+    // Combined shape (shaft + square handle) - single Shape for performance
     Shape {
         anchors.fill: parent
-        layer.enabled: true
-        layer.samples: 4
+        antialiasing: true
 
+        // Arrow shaft
         ShapePath {
             strokeColor: root.color
             strokeWidth: root.lineWidth
@@ -59,14 +59,8 @@ Item {
                 y: root.shaftEnd.y
             }
         }
-    }
 
-    // Square handle at end
-    Shape {
-        anchors.fill: parent
-        layer.enabled: true
-        layer.samples: 4
-
+        // Square handle at end
         ShapePath {
             strokeColor: root.color
             strokeWidth: 1
@@ -78,7 +72,7 @@ Item {
             PathLine { x: root.endPoint.x + root.halfSize; y: root.endPoint.y - root.halfSize }
             PathLine { x: root.endPoint.x + root.halfSize; y: root.endPoint.y + root.halfSize }
             PathLine { x: root.endPoint.x - root.halfSize; y: root.endPoint.y + root.halfSize }
-            PathLine { x: root.endPoint.x - root.halfSize; y: root.endPoint.y - root.halfSize }
+            // Path implicitly closes back to startX/startY for fill
         }
     }
 }

@@ -68,6 +68,19 @@ Item {
     // Cached geometry - updated reactively
     property var geometry: null
 
+    // Performance optimization: drag state and caching
+    property bool isDragging: false
+    property var cachedProjector: null
+    property var lastHitTestGeometry: null
+
+    // Get projector - use cached version during drag
+    function getProjector() {
+        if (isDragging && cachedProjector) {
+            return cachedProjector
+        }
+        return View3DProjectionAdapter.createProjector(view3d)
+    }
+
     // Update geometry when dependencies change
     function updateGeometry() {
         geometry = calculateGizmoGeometry()
@@ -77,8 +90,7 @@ Item {
     function calculateGizmoGeometry() {
         if (!view3d || !view3d.camera || !targetNode) return null
 
-        // Create projector on-demand
-        var projector = View3DProjectionAdapter.createProjector(view3d)
+        var projector = getProjector()
         if (!projector) return null
 
         return TranslationGeometryCalculator.calculateArrowGeometry({
@@ -157,9 +169,10 @@ Item {
     }
 
     // Geometric hit detection using screen-space geometry (uses HitTester)
+    // Caches geometry to avoid recalculating on press
     function getHitRegion(x, y) {
-        var geom = calculateGizmoGeometry()
-        return HitTester.testTranslationGizmoHit(Qt.point(x, y), geom, 10)
+        lastHitTestGeometry = calculateGizmoGeometry()
+        return HitTester.testTranslationGizmoHit(Qt.point(x, y), lastHitTestGeometry, 10)
     }
 
     // Mouse interaction
@@ -185,6 +198,10 @@ Item {
                 root.activeAxis = hitInfo.axis
                 root.activePlane = GizmoEnums.Plane.None
 
+                // Start drag - cache projector
+                root.isDragging = true
+                root.cachedProjector = View3DProjectionAdapter.createProjector(root.view3d)
+
                 // Calculate initial projection offset for axis dragging
                 var ray = GizmoMath.getCameraRay(root.view3d, Qt.point(mouse.x, mouse.y))
                 var axes = root.currentAxes
@@ -203,10 +220,18 @@ Item {
 
                 mouse.accepted = true
                 preventStealing = true
-                root.updateGeometry()
+                // Use cached hit test geometry instead of recalculating
+                if (root.lastHitTestGeometry) {
+                    root.geometry = root.lastHitTestGeometry
+                    root.lastHitTestGeometry = null
+                }
             } else if (hitInfo.type === "plane") {
                 root.activeAxis = GizmoEnums.Axis.None
                 root.activePlane = hitInfo.plane
+
+                // Start drag - cache projector
+                root.isDragging = true
+                root.cachedProjector = View3DProjectionAdapter.createProjector(root.view3d)
 
                 // Store plane normal for ray intersection (use current axes for local mode)
                 var axes2 = root.currentAxes
@@ -230,7 +255,11 @@ Item {
 
                 mouse.accepted = true
                 preventStealing = true
-                root.updateGeometry()
+                // Use cached hit test geometry instead of recalculating
+                if (root.lastHitTestGeometry) {
+                    root.geometry = root.lastHitTestGeometry
+                    root.lastHitTestGeometry = null
+                }
             } else {
                 // No hit - allow camera control
                 root.activeAxis = GizmoEnums.Axis.None
@@ -302,8 +331,8 @@ Item {
                 // Emit delta signal with transform mode
                 root.axisTranslationDelta(root.activeAxis, root.transformMode, deltaT, root.snapEnabled)
             }
-
-            root.updateGeometry()
+            // Note: updateGeometry() removed - geometry is cached at drag start,
+            // only visual feedback (colors) changes during drag via property bindings
         }
 
         onReleased: (mouse) => {
@@ -321,6 +350,11 @@ Item {
             root.activeAxis = GizmoEnums.Axis.None
             root.activePlane = GizmoEnums.Plane.None
             preventStealing = false
+
+            // End drag - clear cached projector
+            root.isDragging = false
+            root.cachedProjector = null
+
             root.updateGeometry()
         }
     }
@@ -347,14 +381,30 @@ Item {
         }
     }
 
-    // Repaint when view3d camera changes
+    // Debounced camera update timer
+    Timer {
+        id: cameraUpdateTimer
+        interval: 8  // ~120fps max
+        repeat: false
+        onTriggered: {
+            if (!root.isDragging) {
+                root.updateGeometry()
+            }
+        }
+    }
+
+    // Repaint when view3d camera changes (debounced)
     Connections {
         target: root.view3d ? root.view3d.camera : null
         function onPositionChanged() {
-            root.updateGeometry()
+            if (!cameraUpdateTimer.running) {
+                cameraUpdateTimer.start()
+            }
         }
         function onRotationChanged() {
-            root.updateGeometry()
+            if (!cameraUpdateTimer.running) {
+                cameraUpdateTimer.start()
+            }
         }
     }
 

@@ -48,12 +48,12 @@ Item {
         endPoint.y - headLength * Math.sin(angle + headAngle)
     )
 
-    // Arrow shaft
+    // Combined arrow shape (shaft + head) - single Shape for performance
     Shape {
         anchors.fill: parent
-        layer.enabled: true
-        layer.samples: 4
+        antialiasing: true
 
+        // Arrow shaft
         ShapePath {
             strokeColor: root.color
             strokeWidth: root.lineWidth
@@ -69,14 +69,8 @@ Item {
                 y: root.shaftEnd.y
             }
         }
-    }
 
-    // Arrowhead (filled triangle)
-    Shape {
-        anchors.fill: parent
-        layer.enabled: true
-        layer.samples: 4
-
+        // Arrowhead (filled triangle)
         ShapePath {
             strokeColor: "transparent"
             fillColor: root.color
@@ -92,10 +86,7 @@ Item {
                 x: root.headRight.x
                 y: root.headRight.y
             }
-            PathLine {
-                x: root.endPoint.x
-                y: root.endPoint.y
-            }
+            // Path implicitly closes back to startX/startY for fill
         }
     }
 }

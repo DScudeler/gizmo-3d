@@ -58,6 +58,19 @@ Item {
     // Cached geometry - updated reactively
     property var geometry: null
 
+    // Performance optimization: drag state and caching
+    property bool isDragging: false
+    property var cachedProjector: null
+    property var lastHitTestGeometry: null
+
+    // Get projector - use cached version during drag
+    function getProjector() {
+        if (isDragging && cachedProjector) {
+            return cachedProjector
+        }
+        return View3DProjectionAdapter.createProjector(view3d)
+    }
+
     // Update geometry when dependencies change
     function updateGeometry() {
         geometry = calculateGizmoGeometry()
@@ -67,7 +80,7 @@ Item {
     function calculateGizmoGeometry() {
         if (!view3d || !view3d.camera || !targetNode) return null
 
-        var projector = View3DProjectionAdapter.createProjector(view3d)
+        var projector = getProjector()
         if (!projector) return null
 
         return ScaleGeometryCalculator.calculateHandleGeometry({
@@ -129,9 +142,10 @@ Item {
     }
 
     // Geometric hit detection (uses HitTester)
+    // Caches geometry to avoid recalculating on press
     function getHitRegion(x, y) {
-        var geom = calculateGizmoGeometry()
-        var result = HitTester.testScaleGizmoHit(Qt.point(x, y), geom, 10, 12)
+        lastHitTestGeometry = calculateGizmoGeometry()
+        var result = HitTester.testScaleGizmoHit(Qt.point(x, y), lastHitTestGeometry, 10, 12)
 
         // Convert result format to match expected API
         if (result.type === "center") {
@@ -164,6 +178,10 @@ Item {
 
             if (hitInfo.type === "axis") {
                 root.activeAxis = hitInfo.axis
+
+                // Start drag - cache projector
+                root.isDragging = true
+                root.cachedProjector = View3DProjectionAdapter.createProjector(root.view3d)
 
                 // Calculate screen-space parameters for axis-constrained scaling
                 dragStartScreenPos = Qt.point(mouse.x, mouse.y)
@@ -204,9 +222,17 @@ Item {
 
                 mouse.accepted = true
                 preventStealing = true
-                root.updateGeometry()
+                // Use cached hit test geometry instead of recalculating
+                if (root.lastHitTestGeometry) {
+                    root.geometry = root.lastHitTestGeometry
+                    root.lastHitTestGeometry = null
+                }
             } else if (hitInfo.type === "uniform") {
                 root.activeAxis = GizmoEnums.Axis.Uniform  // Uniform scaling
+
+                // Start drag - cache projector
+                root.isDragging = true
+                root.cachedProjector = View3DProjectionAdapter.createProjector(root.view3d)
 
                 // For uniform scaling, use distance from camera to target
                 if (root.view3d && root.view3d.camera) {
@@ -222,7 +248,11 @@ Item {
 
                 mouse.accepted = true
                 preventStealing = true
-                root.updateGeometry()
+                // Use cached hit test geometry instead of recalculating
+                if (root.lastHitTestGeometry) {
+                    root.geometry = root.lastHitTestGeometry
+                    root.lastHitTestGeometry = null
+                }
             } else {
                 root.activeAxis = GizmoEnums.Axis.None
                 mouse.accepted = false
@@ -298,8 +328,8 @@ Item {
                 // Emit axis-constrained scale delta with transform mode
                 root.scaleDelta(root.activeAxis, root.transformMode, scaleFactor, root.snapEnabled)
             }
-
-            root.updateGeometry()
+            // Note: updateGeometry() removed - geometry is cached at drag start,
+            // visual feedback (colors) changes during drag via property bindings
         }
 
         onReleased: (mouse) => {
@@ -311,6 +341,11 @@ Item {
             }
             root.activeAxis = GizmoEnums.Axis.None
             preventStealing = false
+
+            // End drag - clear cached projector
+            root.isDragging = false
+            root.cachedProjector = null
+
             root.updateGeometry()
         }
     }
@@ -340,14 +375,30 @@ Item {
         }
     }
 
+    // Debounced camera update timer
+    Timer {
+        id: cameraUpdateTimer
+        interval: 8  // ~120fps max
+        repeat: false
+        onTriggered: {
+            if (!root.isDragging) {
+                root.updateGeometry()
+            }
+        }
+    }
+
     // Repaint when view3d camera changes
     Connections {
         target: root.view3d ? root.view3d.camera : null
         function onPositionChanged() {
-            root.updateGeometry()
+            if (!cameraUpdateTimer.running) {
+                cameraUpdateTimer.start()
+            }
         }
         function onRotationChanged() {
-            root.updateGeometry()
+            if (!cameraUpdateTimer.running) {
+                cameraUpdateTimer.start()
+            }
         }
     }
 

@@ -58,10 +58,23 @@ Item {
     // Cached geometry - updated reactively
     property var geometry: null
 
+    // Performance optimization: drag state and caching
+    property bool isDragging: false
+    property var cachedProjector: null
+    property var lastHitTestGeometry: null
+
     // Camera-facing angles for partial arc rendering
     property real yzFacingAngle: 0.0
     property real zxFacingAngle: 0.0
     property real xyFacingAngle: 0.0
+
+    // Get projector - use cached version during drag
+    function getProjector() {
+        if (isDragging && cachedProjector) {
+            return cachedProjector
+        }
+        return View3DProjectionAdapter.createProjector(view3d)
+    }
 
     // Update geometry when dependencies change
     function updateGeometry() {
@@ -82,7 +95,7 @@ Item {
     function calculateCameraFacingAngle(planeNormal, referenceAxis) {
         if (!view3d || !view3d.camera) return 0
 
-        var projector = View3DProjectionAdapter.createProjector(view3d)
+        var projector = getProjector()
         if (!projector) return 0
 
         return RotationGeometryCalculator.calculateCameraFacingAngle(
@@ -93,7 +106,7 @@ Item {
     function calculateCircleGeometry() {
         if (!view3d || !view3d.camera || !targetNode) return null
 
-        var projector = View3DProjectionAdapter.createProjector(view3d)
+        var projector = getProjector()
         if (!projector) return null
 
         // Use drag start axes during active rotation for stable wedge rendering
@@ -203,11 +216,13 @@ Item {
     }
 
     // Geometric hit detection using circle geometry
+    // Caches geometry to avoid recalculating on press
     function getHitAxis(x, y) {
-        var geom = calculateCircleGeometry()
-        if (!geom) {
+        lastHitTestGeometry = calculateCircleGeometry()
+        if (!lastHitTestGeometry) {
             return GizmoEnums.Axis.None
         }
+        var geom = lastHitTestGeometry
 
         var mousePos = Qt.point(x, y)
         var hitThreshold = 8  // pixels (half of old lineWidth=15, tuned for accuracy)
@@ -268,6 +283,10 @@ Item {
             root.activeAxis = root.getHitAxis(mouse.x, mouse.y)
 
             if (root.activeAxis !== GizmoEnums.Axis.None) {
+                // Start drag - cache projector
+                root.isDragging = true
+                root.cachedProjector = View3DProjectionAdapter.createProjector(root.view3d)
+
                 // Store axes at drag start for stable circle geometry during drag
                 root.dragStartAxes = root.currentAxes
 
@@ -299,7 +318,11 @@ Item {
 
                 mouse.accepted = true
                 preventStealing = true
-                root.updateGeometry()
+                // Use cached hit test geometry instead of recalculating
+                if (root.lastHitTestGeometry) {
+                    root.geometry = root.lastHitTestGeometry
+                    root.lastHitTestGeometry = null
+                }
             } else {
                 mouse.accepted = false
             }
@@ -350,7 +373,8 @@ Item {
 
             // Emit delta signal with transform mode
             root.rotationDelta(root.activeAxis, root.transformMode, snappedDeltaDegrees, root.snapEnabled)
-            root.updateGeometry()
+            // Note: updateGeometry() removed - geometry is cached at drag start,
+            // visual feedback (wedge fill) is driven by currentAngle property binding
         }
 
         onReleased: (mouse) => {
@@ -366,6 +390,11 @@ Item {
             root.currentAngle = 0.0
             root.dragStartAxes = null  // Clear stored axes
             preventStealing = false
+
+            // End drag - clear cached projector
+            root.isDragging = false
+            root.cachedProjector = null
+
             root.updateGeometry()
         }
     }
@@ -390,18 +419,33 @@ Item {
         function onRotationChanged() {
             root.updateGeometry()
         }
-        function onEulerRotationChanged() {
-            root.updateGeometry()
+        // Note: onEulerRotationChanged removed - redundant with onRotationChanged
+        // Both fire when rotation changes, causing duplicate updates
+    }
+
+    // Debounced camera update timer
+    Timer {
+        id: cameraUpdateTimer
+        interval: 8  // ~120fps max
+        repeat: false
+        onTriggered: {
+            if (!root.isDragging) {
+                root.updateGeometry()
+            }
         }
     }
 
     Connections {
         target: root.view3d ? root.view3d.camera : null
         function onPositionChanged() {
-            root.updateGeometry()
+            if (!cameraUpdateTimer.running) {
+                cameraUpdateTimer.start()
+            }
         }
         function onRotationChanged() {
-            root.updateGeometry()
+            if (!cameraUpdateTimer.running) {
+                cameraUpdateTimer.start()
+            }
         }
     }
 

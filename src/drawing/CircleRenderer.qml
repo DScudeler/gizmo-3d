@@ -81,47 +81,47 @@ Item {
         return { start: startIdx, end: endIdx }
     }
 
-    // Build SVG-like path data for the polyline
+    // Build SVG-like path data for the polyline (optimized with array join)
     function buildPolylinePath() {
         if (!points || points.length === 0) return ""
 
-        var path = ""
+        var segments = []
         if (partialArc) {
             var indices = getArcIndices()
             var startIdx = indices.start
             var endIdx = indices.end
 
             if (startIdx < points.length) {
-                path = "M " + points[startIdx].x + " " + points[startIdx].y
+                segments.push("M " + points[startIdx].x + " " + points[startIdx].y)
 
                 if (endIdx < startIdx) {
                     // Wrap around
                     for (var i = startIdx + 1; i < points.length; i++) {
-                        path += " L " + points[i].x + " " + points[i].y
+                        segments.push("L " + points[i].x + " " + points[i].y)
                     }
                     for (var j = 0; j <= endIdx; j++) {
-                        path += " L " + points[j].x + " " + points[j].y
+                        segments.push("L " + points[j].x + " " + points[j].y)
                     }
                 } else {
                     for (var k = startIdx + 1; k <= endIdx; k++) {
-                        path += " L " + points[k].x + " " + points[k].y
+                        segments.push("L " + points[k].x + " " + points[k].y)
                     }
                 }
             }
         } else {
             // Full circle
             if (points.length > 0) {
-                path = "M " + points[0].x + " " + points[0].y
+                segments.push("M " + points[0].x + " " + points[0].y)
                 for (var m = 1; m < points.length; m++) {
-                    path += " L " + points[m].x + " " + points[m].y
+                    segments.push("L " + points[m].x + " " + points[m].y)
                 }
             }
         }
 
-        return path
+        return segments.join(" ")
     }
 
-    // Build path data for filled wedge
+    // Build path data for filled wedge (optimized with array join)
     function buildWedgePath() {
         if (!points || points.length === 0 || !filled) return ""
 
@@ -129,36 +129,35 @@ Item {
         var startIdx = indices.start
         var endIdx = indices.end
 
-        var path = "M " + center.x + " " + center.y
+        var segments = ["M " + center.x + " " + center.y]
 
         if (startIdx < points.length) {
-            path += " L " + points[startIdx].x + " " + points[startIdx].y
+            segments.push("L " + points[startIdx].x + " " + points[startIdx].y)
 
             if (endIdx < startIdx) {
                 // Wrap around
                 for (var i = startIdx + 1; i < points.length; i++) {
-                    path += " L " + points[i].x + " " + points[i].y
+                    segments.push("L " + points[i].x + " " + points[i].y)
                 }
                 for (var j = 0; j <= endIdx; j++) {
-                    path += " L " + points[j].x + " " + points[j].y
+                    segments.push("L " + points[j].x + " " + points[j].y)
                 }
             } else {
                 for (var k = startIdx + 1; k <= endIdx; k++) {
-                    path += " L " + points[k].x + " " + points[k].y
+                    segments.push("L " + points[k].x + " " + points[k].y)
                 }
             }
         }
 
-        path += " Z"  // Close path back to center
-        return path
+        segments.push("Z")  // Close path back to center
+        return segments.join(" ")
     }
 
     // Filled wedge (rendered behind outline)
     Shape {
         anchors.fill: parent
         visible: root.filled && root.points.length > 0
-        layer.enabled: true
-        layer.samples: 4
+        antialiasing: true
 
         ShapePath {
             strokeColor: "transparent"
@@ -174,8 +173,7 @@ Item {
     Shape {
         anchors.fill: parent
         visible: root.points.length > 0
-        layer.enabled: true
-        layer.samples: 4
+        antialiasing: true
 
         ShapePath {
             strokeColor: root.color
