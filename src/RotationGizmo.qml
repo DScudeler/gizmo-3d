@@ -55,58 +55,32 @@ Item {
 
     anchors.fill: parent
 
-    // Cached geometry - updated reactively
-    property var geometry: null
-
     // Performance optimization: drag state and caching
     property bool isDragging: false
     property var cachedProjector: null
     property var lastHitTestGeometry: null
 
-    // Camera-facing angles for partial arc rendering
-    property real yzFacingAngle: 0.0
-    property real zxFacingAngle: 0.0
-    property real xyFacingAngle: 0.0
+    // Initialization flag to trigger initial geometry calculation
+    property bool initialized: false
+    Component.onCompleted: initialized = true
 
-    // Get projector - use cached version during drag
-    function getProjector() {
-        if (isDragging && cachedProjector) {
-            return cachedProjector
-        }
-        return View3DProjectionAdapter.createProjector(view3d)
-    }
+    // Camera tracking properties for reactive geometry binding
+    readonly property vector3d cameraPosition: view3d && view3d.camera ? view3d.camera.scenePosition : Qt.vector3d(0, 0, 0)
+    readonly property quaternion cameraRotation: view3d && view3d.camera ? view3d.camera.sceneRotation : Qt.quaternion(1, 0, 0, 0)
 
-    // Update geometry when dependencies change
-    function updateGeometry() {
-        geometry = calculateCircleGeometry()
+    // Reactive geometry binding - auto-updates when dependencies change
+    readonly property var geometry: {
+        // Reference these properties to establish binding dependencies
+        var _init = initialized
+        var _cp = cameraPosition
+        var _cr = cameraRotation
 
-        // Update camera-facing angles
-        var axes = currentAxes
-        yzFacingAngle = calculateCameraFacingAngle(axes.x, axes.y)
-        zxFacingAngle = calculateCameraFacingAngle(axes.y, axes.z)
-        xyFacingAngle = calculateCameraFacingAngle(axes.z, axes.x)
-    }
-
-    // ========================================
-    // Circle Geometry Calculation
-    // ========================================
-
-    // Calculate the angle on a rotation plane that faces the camera (uses geometry calculator)
-    function calculateCameraFacingAngle(planeNormal, referenceAxis) {
-        if (!view3d || !view3d.camera) return 0
-
-        var projector = getProjector()
-        if (!projector) return 0
-
-        return RotationGeometryCalculator.calculateCameraFacingAngle(
-            targetPosition, planeNormal, referenceAxis, projector
-        )
-    }
-
-    function calculateCircleGeometry() {
         if (!view3d || !view3d.camera || !targetNode) return null
 
-        var projector = getProjector()
+        // Use cached projector during drag, otherwise create new one
+        var projector = isDragging && cachedProjector
+            ? cachedProjector
+            : View3DProjectionAdapter.createProjector(view3d)
         if (!projector) return null
 
         // Use drag start axes during active rotation for stable wedge rendering
@@ -121,6 +95,70 @@ Item {
             maxScreenRadius: maxScreenRadius,
             segments: 64
         })
+    }
+
+    // Camera-facing angles for partial arc rendering - reactive bindings
+    readonly property real yzFacingAngle: {
+        var _cp = cameraPosition
+        var _cr = cameraRotation
+        if (!view3d || !view3d.camera) return 0
+        var projector = View3DProjectionAdapter.createProjector(view3d)
+        if (!projector) return 0
+        return RotationGeometryCalculator.calculateCameraFacingAngle(
+            targetPosition, currentAxes.x, currentAxes.y, projector
+        )
+    }
+
+    readonly property real zxFacingAngle: {
+        var _cp = cameraPosition
+        var _cr = cameraRotation
+        if (!view3d || !view3d.camera) return 0
+        var projector = View3DProjectionAdapter.createProjector(view3d)
+        if (!projector) return 0
+        return RotationGeometryCalculator.calculateCameraFacingAngle(
+            targetPosition, currentAxes.y, currentAxes.z, projector
+        )
+    }
+
+    readonly property real xyFacingAngle: {
+        var _cp = cameraPosition
+        var _cr = cameraRotation
+        if (!view3d || !view3d.camera) return 0
+        var projector = View3DProjectionAdapter.createProjector(view3d)
+        if (!projector) return 0
+        return RotationGeometryCalculator.calculateCameraFacingAngle(
+            targetPosition, currentAxes.z, currentAxes.x, projector
+        )
+    }
+
+    // Helper for hit testing - needs fresh geometry calculation
+    function calculateCircleGeometry() {
+        if (!view3d || !view3d.camera || !targetNode) return null
+        var projector = View3DProjectionAdapter.createProjector(view3d)
+        if (!projector) return null
+        var axesToUse = (activeAxis !== GizmoEnums.Axis.None && dragStartAxes) ? dragStartAxes : currentAxes
+        return RotationGeometryCalculator.calculateCircleGeometry({
+            projector: projector,
+            targetPosition: targetPosition,
+            axes: axesToUse,
+            gizmoSize: gizmoSize,
+            maxScreenRadius: maxScreenRadius,
+            segments: 64
+        })
+    }
+
+    // ========================================
+    // Helper Functions
+    // ========================================
+
+    // Calculate the angle on a rotation plane that faces the camera (uses geometry calculator)
+    function calculateCameraFacingAngle(planeNormal, referenceAxis) {
+        if (!view3d || !view3d.camera) return 0
+        var projector = View3DProjectionAdapter.createProjector(view3d)
+        if (!projector) return 0
+        return RotationGeometryCalculator.calculateCameraFacingAngle(
+            targetPosition, planeNormal, referenceAxis, projector
+        )
     }
 
     // ========================================
@@ -318,11 +356,6 @@ Item {
 
                 mouse.accepted = true
                 preventStealing = true
-                // Use cached hit test geometry instead of recalculating
-                if (root.lastHitTestGeometry) {
-                    root.geometry = root.lastHitTestGeometry
-                    root.lastHitTestGeometry = null
-                }
             } else {
                 mouse.accepted = false
             }
@@ -394,69 +427,11 @@ Item {
             // End drag - clear cached projector
             root.isDragging = false
             root.cachedProjector = null
-
-            root.updateGeometry()
         }
     }
 
-    // ========================================
-    // Legacy API compatibility
-    // ========================================
-
+    // Legacy API compatibility - no-op since geometry is now reactive
     function repaintGizmo() {
-        updateGeometry()
-    }
-
-    // ========================================
-    // Automatic Update Connections
-    // ========================================
-
-    Connections {
-        target: root.targetNode
-        function onPositionChanged() {
-            root.updateGeometry()
-        }
-        function onRotationChanged() {
-            root.updateGeometry()
-        }
-        // Note: onEulerRotationChanged removed - redundant with onRotationChanged
-        // Both fire when rotation changes, causing duplicate updates
-    }
-
-    // Debounced camera update timer
-    Timer {
-        id: cameraUpdateTimer
-        interval: 8  // ~120fps max
-        repeat: false
-        onTriggered: {
-            if (!root.isDragging) {
-                root.updateGeometry()
-            }
-        }
-    }
-
-    Connections {
-        target: root.view3d ? root.view3d.camera : null
-        function onPositionChanged() {
-            if (!cameraUpdateTimer.running) {
-                cameraUpdateTimer.start()
-            }
-        }
-        function onRotationChanged() {
-            if (!cameraUpdateTimer.running) {
-                cameraUpdateTimer.start()
-            }
-        }
-    }
-
-    // Handle property changes that require geometry update
-    onTargetNodeChanged: updateGeometry()
-    onTransformModeChanged: updateGeometry()
-    onGizmoSizeChanged: updateGeometry()
-    onMaxScreenRadiusChanged: updateGeometry()
-    onInactiveArcRangeChanged: updateGeometry()
-
-    Component.onCompleted: {
-        updateGeometry()
+        // Geometry updates automatically via property bindings
     }
 }

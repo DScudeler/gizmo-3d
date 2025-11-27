@@ -43,8 +43,8 @@ Item {
     property real arcStart: 0.0  // Start angle for fill in radians
     property real arcEnd: 0.0    // End angle for fill in radians
 
-    // Internal: calculate start and end indices for partial arc
-    function getArcIndices() {
+    // Internal: computed arc indices for partial arc rendering
+    readonly property var arcIndices: {
         if (!points || points.length === 0) return { start: 0, end: 0 }
 
         var halfRange = arcRange / 2
@@ -63,8 +63,8 @@ Item {
         return { start: startIdx, end: endIdx }
     }
 
-    // Internal: calculate indices for filled wedge
-    function getWedgeIndices() {
+    // Internal: computed indices for filled wedge
+    readonly property var wedgeIndices: {
         if (!points || points.length === 0) return { start: 0, end: 0 }
 
         var normalizedStart = arcStart
@@ -81,15 +81,14 @@ Item {
         return { start: startIdx, end: endIdx }
     }
 
-    // Build SVG-like path data for the polyline (optimized with array join)
-    function buildPolylinePath() {
+    // Computed SVG path data for the polyline
+    readonly property string polylinePath: {
         if (!points || points.length === 0) return ""
 
         var segments = []
         if (partialArc) {
-            var indices = getArcIndices()
-            var startIdx = indices.start
-            var endIdx = indices.end
+            var startIdx = arcIndices.start
+            var endIdx = arcIndices.end
 
             if (startIdx < points.length) {
                 segments.push("M " + points[startIdx].x + " " + points[startIdx].y)
@@ -121,13 +120,12 @@ Item {
         return segments.join(" ")
     }
 
-    // Build path data for filled wedge (optimized with array join)
-    function buildWedgePath() {
+    // Computed path data for filled wedge
+    readonly property string wedgePath: {
         if (!points || points.length === 0 || !filled) return ""
 
-        var indices = getWedgeIndices()
-        var startIdx = indices.start
-        var endIdx = indices.end
+        var startIdx = wedgeIndices.start
+        var endIdx = wedgeIndices.end
 
         var segments = ["M " + center.x + " " + center.y]
 
@@ -164,7 +162,7 @@ Item {
             fillColor: Qt.rgba(root.color.r, root.color.g, root.color.b, root.fillAlpha)
 
             PathSvg {
-                path: root.buildWedgePath()
+                path: root.wedgePath
             }
         }
     }
@@ -183,7 +181,7 @@ Item {
             joinStyle: root.joinStyle
 
             PathSvg {
-                path: root.buildPolylinePath()
+                path: root.polylinePath
             }
         }
     }
