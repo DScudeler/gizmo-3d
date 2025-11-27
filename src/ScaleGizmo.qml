@@ -38,16 +38,6 @@ Item {
         }
     }
 
-    // Handle targetNode changes to trigger repaint
-    onTargetNodeChanged: {
-        repaintGizmo()
-    }
-
-    // Handle transform mode changes to trigger repaint (world/local switch)
-    onTransformModeChanged: {
-        repaintGizmo()
-    }
-
     // Active axis
     property int activeAxis: GizmoEnums.Axis.None
     property bool isActive: activeAxis !== GizmoEnums.Axis.None
@@ -64,6 +54,14 @@ Item {
     readonly property color uniformColor: activeAxis === GizmoEnums.Axis.Uniform ? "#ffff66" : "#ffff00"
 
     anchors.fill: parent
+
+    // Cached geometry - updated reactively
+    property var geometry: null
+
+    // Update geometry when dependencies change
+    function updateGeometry() {
+        geometry = calculateGizmoGeometry()
+    }
 
     // Helper function to calculate arrow geometry (uses geometry calculator)
     function calculateGizmoGeometry() {
@@ -83,50 +81,57 @@ Item {
         })
     }
 
-    // Drawing primitives
-    ArrowPrimitive {
-        id: arrowPrimitive
-        lineCap: "round"
-    }
+    // ========================================
+    // Rendering Layer - QtQuick.Shapes based
+    // ========================================
 
-    SquareHandlePrimitive {
-        id: squareHandlePrimitive
-        defaultSize: 12
-        lineWidth: 1
-    }
-
-    // Visible canvas for rendering
-    Canvas {
-        id: canvas
+    Item {
+        id: renderLayer
         anchors.fill: parent
-        renderStrategy: Canvas.Threaded
-        renderTarget: Canvas.FramebufferObject
 
-        onPaint: {
-            var geometry = root.calculateGizmoGeometry()
-            if (!geometry) return
+        // Uniform scale handle at center
+        SquareHandleRenderer {
+            anchors.fill: parent
+            center: root.geometry ? root.geometry.center : Qt.point(0, 0)
+            color: root.uniformColor
+            size: 8
+        }
 
-            var ctx = getContext("2d", { alpha: true })
-            ctx.clearRect(0, 0, width, height)
+        // X axis (red) with square end
+        ScaleArrowRenderer {
+            anchors.fill: parent
+            startPoint: root.geometry ? root.geometry.xStart : Qt.point(0, 0)
+            endPoint: root.geometry ? root.geometry.xEnd : Qt.point(0, 0)
+            color: root.xAxisColor
+            lineWidth: root.lineWidth
+            squareSize: 12
+        }
 
-            // Draw uniform scale handle at center
-            squareHandlePrimitive.draw(ctx, geometry.center, root.uniformColor, 8)
+        // Y axis (green) with square end
+        ScaleArrowRenderer {
+            anchors.fill: parent
+            startPoint: root.geometry ? root.geometry.yStart : Qt.point(0, 0)
+            endPoint: root.geometry ? root.geometry.yEnd : Qt.point(0, 0)
+            color: root.yAxisColor
+            lineWidth: root.lineWidth
+            squareSize: 12
+        }
 
-            // Draw X axis (red) with square end
-            arrowPrimitive.drawWithSquare(ctx, geometry.xStart, geometry.xEnd, root.xAxisColor, root.lineWidth, 12)
-
-            // Draw Y axis (green) with square end
-            arrowPrimitive.drawWithSquare(ctx, geometry.yStart, geometry.yEnd, root.yAxisColor, root.lineWidth, 12)
-
-            // Draw Z axis (blue) with square end
-            arrowPrimitive.drawWithSquare(ctx, geometry.zStart, geometry.zEnd, root.zAxisColor, root.lineWidth, 12)
+        // Z axis (blue) with square end
+        ScaleArrowRenderer {
+            anchors.fill: parent
+            startPoint: root.geometry ? root.geometry.zStart : Qt.point(0, 0)
+            endPoint: root.geometry ? root.geometry.zEnd : Qt.point(0, 0)
+            color: root.zAxisColor
+            lineWidth: root.lineWidth
+            squareSize: 12
         }
     }
 
     // Geometric hit detection (uses HitTester)
     function getHitRegion(x, y) {
-        var geometry = calculateGizmoGeometry()
-        var result = HitTester.testScaleGizmoHit(Qt.point(x, y), geometry, 10, 12)
+        var geom = calculateGizmoGeometry()
+        var result = HitTester.testScaleGizmoHit(Qt.point(x, y), geom, 10, 12)
 
         // Convert result format to match expected API
         if (result.type === "center") {
@@ -199,7 +204,7 @@ Item {
 
                 mouse.accepted = true
                 preventStealing = true
-                root.repaintGizmo()
+                root.updateGeometry()
             } else if (hitInfo.type === "uniform") {
                 root.activeAxis = GizmoEnums.Axis.Uniform  // Uniform scaling
 
@@ -217,7 +222,7 @@ Item {
 
                 mouse.accepted = true
                 preventStealing = true
-                root.repaintGizmo()
+                root.updateGeometry()
             } else {
                 root.activeAxis = GizmoEnums.Axis.None
                 mouse.accepted = false
@@ -294,7 +299,7 @@ Item {
                 root.scaleDelta(root.activeAxis, root.transformMode, scaleFactor, root.snapEnabled)
             }
 
-            root.repaintGizmo()
+            root.updateGeometry()
         }
 
         onReleased: (mouse) => {
@@ -306,23 +311,23 @@ Item {
             }
             root.activeAxis = GizmoEnums.Axis.None
             preventStealing = false
-            root.repaintGizmo()
+            root.updateGeometry()
         }
     }
 
-    // Helper function to repaint canvas
+    // Legacy API compatibility - repaintGizmo now updates geometry
     function repaintGizmo() {
-        canvas.requestPaint()
+        updateGeometry()
     }
 
     // Repaint when target position changes
     Connections {
         target: root.targetNode
         function onPositionChanged() {
-            root.repaintGizmo()
+            root.updateGeometry()
         }
         function onScaleChanged() {
-            root.repaintGizmo()
+            root.updateGeometry()
         }
     }
 
@@ -331,7 +336,7 @@ Item {
         target: root.targetNode
         enabled: root.transformMode === GizmoEnums.TransformMode.Local
         function onRotationChanged() {
-            root.repaintGizmo()
+            root.updateGeometry()
         }
     }
 
@@ -339,14 +344,22 @@ Item {
     Connections {
         target: root.view3d ? root.view3d.camera : null
         function onPositionChanged() {
-            root.repaintGizmo()
+            root.updateGeometry()
         }
         function onRotationChanged() {
-            root.repaintGizmo()
+            root.updateGeometry()
         }
     }
 
+    // Handle property changes that require geometry update
+    onTargetNodeChanged: updateGeometry()
+    onTransformModeChanged: updateGeometry()
+    onGizmoSizeChanged: updateGeometry()
+    onMaxScreenSizeChanged: updateGeometry()
+    onArrowStartRatioChanged: updateGeometry()
+    onArrowEndRatioChanged: updateGeometry()
+
     Component.onCompleted: {
-        repaintGizmo()
+        updateGeometry()
     }
 }

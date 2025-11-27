@@ -38,16 +38,6 @@ Item {
         }
     }
 
-    // Handle targetNode changes to trigger repaint (binding handles position updates)
-    onTargetNodeChanged: {
-        repaintGizmo()
-    }
-
-    // Handle transform mode changes to trigger repaint (world/local switch)
-    onTransformModeChanged: {
-        repaintGizmo()
-    }
-
     // Snap configuration
     property bool snapEnabled: false
     property real snapAngle: 15.0  // Snap increment in degrees
@@ -63,6 +53,26 @@ Item {
     readonly property color yAxisColor: activeAxis === GizmoEnums.Axis.Y ? "#66ff66" : "#00ff00"
     readonly property color zAxisColor: activeAxis === GizmoEnums.Axis.Z ? "#6666ff" : "#0000ff"
 
+    anchors.fill: parent
+
+    // Cached geometry - updated reactively
+    property var geometry: null
+
+    // Camera-facing angles for partial arc rendering
+    property real yzFacingAngle: 0.0
+    property real zxFacingAngle: 0.0
+    property real xyFacingAngle: 0.0
+
+    // Update geometry when dependencies change
+    function updateGeometry() {
+        geometry = calculateCircleGeometry()
+
+        // Update camera-facing angles
+        var axes = currentAxes
+        yzFacingAngle = calculateCameraFacingAngle(axes.x, axes.y)
+        zxFacingAngle = calculateCameraFacingAngle(axes.y, axes.z)
+        xyFacingAngle = calculateCameraFacingAngle(axes.z, axes.x)
+    }
 
     // ========================================
     // Circle Geometry Calculation
@@ -100,88 +110,68 @@ Item {
         })
     }
 
-
     // ========================================
-    // Drawing Primitives
-    // ========================================
-
-    CirclePrimitive {
-        id: circlePrimitive
-        fillAlpha: 0.5
-        lineCap: "round"
-        lineJoin: "round"
-    }
-
-    // ========================================
-    // Visible Canvas
+    // Rendering Layer - QtQuick.Shapes based
     // ========================================
 
-    Canvas {
-        id: canvas
+    Item {
+        id: renderLayer
         anchors.fill: parent
-        renderStrategy: Canvas.Threaded
-        renderTarget: Canvas.FramebufferObject
 
-        onPaint: {
-            var geometry = root.calculateCircleGeometry()
-            if (!geometry) return
+        property real arcRangeRadians: root.inactiveArcRange * (Math.PI / 180)
 
-            var ctx = getContext("2d", { alpha: true })
-            ctx.reset()
-            ctx.clearRect(0, 0, width, height)
+        // YZ plane (X-axis rotation) - Red
+        CircleRenderer {
+            anchors.fill: parent
+            points: root.geometry ? root.geometry.circles.yz : []
+            center: root.geometry ? root.geometry.center : Qt.point(0, 0)
+            color: root.xAxisColor
+            lineWidth: root.activeAxis === GizmoEnums.Axis.X ? 4 : 2
 
-            // Enable anti-aliasing for smooth appearance
-            ctx.antialias = true
-            ctx.imageSmoothingEnabled = true
+            // Full circle with fill when active, partial arc when inactive
+            partialArc: root.activeAxis !== GizmoEnums.Axis.X
+            arcCenter: root.yzFacingAngle
+            arcRange: renderLayer.arcRangeRadians
 
-            // Calculate camera-facing angles for each plane (used for partial arc rendering when inactive)
-            // Use currentAxes to support local mode - angles must match circle geometry
-            var axes = root.currentAxes
-            var yzFacingAngle = root.calculateCameraFacingAngle(axes.x, axes.y)  // YZ plane, Y reference
-            var zxFacingAngle = root.calculateCameraFacingAngle(axes.y, axes.z)  // ZX plane, Z reference
-            var xyFacingAngle = root.calculateCameraFacingAngle(axes.z, axes.x)  // XY plane, X reference
+            filled: root.activeAxis === GizmoEnums.Axis.X
+            arcStart: root.dragStartAngle
+            arcEnd: root.currentAngle
+        }
 
-            var arcRangeRadians = root.inactiveArcRange * (Math.PI / 180)
+        // ZX plane (Y-axis rotation) - Green
+        CircleRenderer {
+            anchors.fill: parent
+            points: root.geometry ? root.geometry.circles.zx : []
+            center: root.geometry ? root.geometry.center : Qt.point(0, 0)
+            color: root.yAxisColor
+            lineWidth: root.activeAxis === GizmoEnums.Axis.Y ? 4 : 2
 
-            // Draw circles with active arc highlighting
-            // YZ plane (X-axis rotation) - Red
-            if (root.activeAxis === GizmoEnums.Axis.X) {
-                // Active: full circle with filled rotation arc
-                circlePrimitive.draw(ctx, geometry.circles.yz, geometry.center, root.xAxisColor, 4, true,
-                          root.dragStartAngle, root.currentAngle, "YZ-plane(X-RED-ACTIVE)", false)
-            } else {
-                // Inactive: partial arc facing camera
-                circlePrimitive.draw(ctx, geometry.circles.yz, geometry.center, "#ff0000", 2, false,
-                          undefined, undefined, "YZ-plane(X-RED-inactive)", true, yzFacingAngle, arcRangeRadians)
-            }
+            partialArc: root.activeAxis !== GizmoEnums.Axis.Y
+            arcCenter: root.zxFacingAngle
+            arcRange: renderLayer.arcRangeRadians
 
-            // ZX plane (Y-axis rotation) - Green
-            if (root.activeAxis === GizmoEnums.Axis.Y) {
-                // Active: full circle with filled rotation arc
-                circlePrimitive.draw(ctx, geometry.circles.zx, geometry.center, root.yAxisColor, 4, true,
-                          root.dragStartAngle, root.currentAngle, "ZX-plane(Y-GREEN-ACTIVE)", false)
-            } else {
-                // Inactive: partial arc facing camera
-                circlePrimitive.draw(ctx, geometry.circles.zx, geometry.center, "#00ff00", 2, false,
-                          undefined, undefined, "ZX-plane(Y-GREEN-inactive)", true, zxFacingAngle, arcRangeRadians)
-            }
+            filled: root.activeAxis === GizmoEnums.Axis.Y
+            arcStart: root.dragStartAngle
+            arcEnd: root.currentAngle
+        }
 
-            // XY plane (Z-axis rotation) - Blue
-            if (root.activeAxis === GizmoEnums.Axis.Z) {
-                // Active: full circle with filled rotation arc
-                circlePrimitive.draw(ctx, geometry.circles.xy, geometry.center, root.zAxisColor, 4, true,
-                          root.dragStartAngle, root.currentAngle, "XY-plane(Z-BLUE-ACTIVE)", false)
-            } else {
-                // Inactive: partial arc facing camera
-                circlePrimitive.draw(ctx, geometry.circles.xy, geometry.center, "#0000ff", 2, false,
-                          undefined, undefined, "XY-plane(Z-BLUE-inactive)", true, xyFacingAngle, arcRangeRadians)
-            }
+        // XY plane (Z-axis rotation) - Blue
+        CircleRenderer {
+            anchors.fill: parent
+            points: root.geometry ? root.geometry.circles.xy : []
+            center: root.geometry ? root.geometry.center : Qt.point(0, 0)
+            color: root.zAxisColor
+            lineWidth: root.activeAxis === GizmoEnums.Axis.Z ? 4 : 2
+
+            partialArc: root.activeAxis !== GizmoEnums.Axis.Z
+            arcCenter: root.xyFacingAngle
+            arcRange: renderLayer.arcRangeRadians
+
+            filled: root.activeAxis === GizmoEnums.Axis.Z
+            arcStart: root.dragStartAngle
+            arcEnd: root.currentAngle
         }
     }
-
-    // ========================================
-    // Hit-Test Canvas (Hidden)
-    // ========================================
 
     // ========================================
     // Geometric Hit Detection
@@ -214,8 +204,8 @@ Item {
 
     // Geometric hit detection using circle geometry
     function getHitAxis(x, y) {
-        var geometry = calculateCircleGeometry()
-        if (!geometry) {
+        var geom = calculateCircleGeometry()
+        if (!geom) {
             return GizmoEnums.Axis.None
         }
 
@@ -223,11 +213,11 @@ Item {
         var hitThreshold = 8  // pixels (half of old lineWidth=15, tuned for accuracy)
 
         // Test each circle - use currentAxes for local mode support
-        var axes = root.currentAxes
+        var axes = currentAxes
         var circleTests = [
-            {axis: GizmoEnums.Axis.X, points: geometry.circles.yz, planeNormal: axes.x, refAxis: axes.y},  // X-rotation (YZ plane)
-            {axis: GizmoEnums.Axis.Y, points: geometry.circles.zx, planeNormal: axes.y, refAxis: axes.z},  // Y-rotation (ZX plane)
-            {axis: GizmoEnums.Axis.Z, points: geometry.circles.xy, planeNormal: axes.z, refAxis: axes.x}   // Z-rotation (XY plane)
+            {axis: GizmoEnums.Axis.X, points: geom.circles.yz, planeNormal: axes.x, refAxis: axes.y},  // X-rotation (YZ plane)
+            {axis: GizmoEnums.Axis.Y, points: geom.circles.zx, planeNormal: axes.y, refAxis: axes.z},  // Y-rotation (ZX plane)
+            {axis: GizmoEnums.Axis.Z, points: geom.circles.xy, planeNormal: axes.z, refAxis: axes.x}   // Z-rotation (XY plane)
         ]
 
         var closestAxis = GizmoEnums.Axis.None
@@ -309,7 +299,7 @@ Item {
 
                 mouse.accepted = true
                 preventStealing = true
-                root.repaintGizmo()
+                root.updateGeometry()
             } else {
                 mouse.accepted = false
             }
@@ -360,7 +350,7 @@ Item {
 
             // Emit delta signal with transform mode
             root.rotationDelta(root.activeAxis, root.transformMode, snappedDeltaDegrees, root.snapEnabled)
-            root.repaintGizmo()
+            root.updateGeometry()
         }
 
         onReleased: (mouse) => {
@@ -376,46 +366,53 @@ Item {
             root.currentAngle = 0.0
             root.dragStartAxes = null  // Clear stored axes
             preventStealing = false
-            root.repaintGizmo()
+            root.updateGeometry()
         }
     }
 
     // ========================================
-    // Repaint Trigger Function
+    // Legacy API compatibility
     // ========================================
 
     function repaintGizmo() {
-        canvas.requestPaint()
+        updateGeometry()
     }
 
     // ========================================
-    // Automatic Repaint Connections
+    // Automatic Update Connections
     // ========================================
 
     Connections {
         target: root.targetNode
         function onPositionChanged() {
-            root.repaintGizmo()  // Binding already updated targetPosition
+            root.updateGeometry()
         }
         function onRotationChanged() {
-            root.repaintGizmo()
+            root.updateGeometry()
         }
         function onEulerRotationChanged() {
-            root.repaintGizmo()
+            root.updateGeometry()
         }
     }
 
     Connections {
         target: root.view3d ? root.view3d.camera : null
         function onPositionChanged() {
-            root.repaintGizmo()
+            root.updateGeometry()
         }
         function onRotationChanged() {
-            root.repaintGizmo()
+            root.updateGeometry()
         }
     }
 
+    // Handle property changes that require geometry update
+    onTargetNodeChanged: updateGeometry()
+    onTransformModeChanged: updateGeometry()
+    onGizmoSizeChanged: updateGeometry()
+    onMaxScreenRadiusChanged: updateGeometry()
+    onInactiveArcRangeChanged: updateGeometry()
+
     Component.onCompleted: {
-        repaintGizmo()  // Binding handles position initialization
+        updateGeometry()
     }
 }

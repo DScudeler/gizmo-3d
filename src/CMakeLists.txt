@@ -31,10 +31,11 @@ qt_add_qml_module(gizmo3d
         geometry/RotationGeometryCalculator.qml
         geometry/ScaleGeometryCalculator.qml
         geometry/HitTester.qml
-        drawing/ArrowPrimitive.qml
-        drawing/CirclePrimitive.qml
-        drawing/PlanePrimitive.qml
-        drawing/SquareHandlePrimitive.qml
+        drawing/ArrowRenderer.qml
+        drawing/ScaleArrowRenderer.qml
+        drawing/CircleRenderer.qml
+        drawing/PlaneRenderer.qml
+        drawing/SquareHandleRenderer.qml
     OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/src/Gizmo3D
     NO_PLUGIN
 )

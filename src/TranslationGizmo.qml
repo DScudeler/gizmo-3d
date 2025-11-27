@@ -42,16 +42,6 @@ Item {
         }
     }
 
-    // Handle targetNode changes to trigger repaint (binding handles position updates)
-    onTargetNodeChanged: {
-        repaintGizmo()
-    }
-
-    // Handle transform mode changes to trigger repaint (world/local switch)
-    onTransformModeChanged: {
-        repaintGizmo()
-    }
-
     // Active handles: axis or plane
     property int activeAxis: GizmoEnums.Axis.None
     property int activePlane: GizmoEnums.Plane.None
@@ -74,6 +64,14 @@ Item {
     readonly property color yzPlaneColor: activePlane === GizmoEnums.Plane.YZ ? "#99ffff" : "#00ffff"
 
     anchors.fill: parent
+
+    // Cached geometry - updated reactively
+    property var geometry: null
+
+    // Update geometry when dependencies change
+    function updateGeometry() {
+        geometry = calculateGizmoGeometry()
+    }
 
     // Helper function to calculate arrow geometry and plane handles (uses new geometry calculator)
     function calculateGizmoGeometry() {
@@ -101,67 +99,67 @@ Item {
         )
     }
 
-    // Drawing primitives
-    ArrowPrimitive {
-        id: arrowPrimitive
-        headLength: 15
-        headAngle: Math.PI / 6
-        lineCap: "round"
-    }
-
-    PlanePrimitive {
-        id: planePrimitive
-        inactiveAlpha: 0.3
-        activeAlpha: 0.5
-        inactiveLineWidth: 2
-        activeLineWidth: 3
-    }
-
-    // Visible canvas for rendering
-    Canvas {
-        id: canvas
+    // Rendering layer - QtQuick.Shapes based
+    Item {
+        id: renderLayer
         anchors.fill: parent
-        renderStrategy: Canvas.Threaded
-        renderTarget: Canvas.FramebufferObject
 
-        onPaint: {
-            var geometry = root.calculateGizmoGeometry()
-            if (!geometry) return
+        // XY plane (yellow) - rendered first so arrows are on top
+        PlaneRenderer {
+            anchors.fill: parent
+            corners: root.geometry && root.geometry.planes.xy.length === 4 ? root.geometry.planes.xy : []
+            color: root.xyPlaneColor
+            active: root.activePlane === GizmoEnums.Plane.XY
+        }
 
-            var ctx = getContext("2d", { alpha: true })
-            ctx.clearRect(0, 0, width, height)
+        // XZ plane (magenta)
+        PlaneRenderer {
+            anchors.fill: parent
+            corners: root.geometry && root.geometry.planes.xz.length === 4 ? root.geometry.planes.xz : []
+            color: root.xzPlaneColor
+            active: root.activePlane === GizmoEnums.Plane.XZ
+        }
 
-            // Draw planes first (so arrows are on top)
-            // XY plane (yellow)
-            if (geometry.planes.xy.length === 4) {
-                planePrimitive.draw(ctx, geometry.planes.xy, root.xyPlaneColor, root.activePlane === GizmoEnums.Plane.XY)
-            }
+        // YZ plane (cyan)
+        PlaneRenderer {
+            anchors.fill: parent
+            corners: root.geometry && root.geometry.planes.yz.length === 4 ? root.geometry.planes.yz : []
+            color: root.yzPlaneColor
+            active: root.activePlane === GizmoEnums.Plane.YZ
+        }
 
-            // XZ plane (magenta)
-            if (geometry.planes.xz.length === 4) {
-                planePrimitive.draw(ctx, geometry.planes.xz, root.xzPlaneColor, root.activePlane === GizmoEnums.Plane.XZ)
-            }
+        // X axis (red)
+        ArrowRenderer {
+            anchors.fill: parent
+            startPoint: root.geometry ? root.geometry.xStart : Qt.point(0, 0)
+            endPoint: root.geometry ? root.geometry.xEnd : Qt.point(0, 0)
+            color: root.xAxisColor
+            lineWidth: root.lineWidth
+        }
 
-            // YZ plane (cyan)
-            if (geometry.planes.yz.length === 4) {
-                planePrimitive.draw(ctx, geometry.planes.yz, root.yzPlaneColor, root.activePlane === GizmoEnums.Plane.YZ)
-            }
+        // Y axis (green)
+        ArrowRenderer {
+            anchors.fill: parent
+            startPoint: root.geometry ? root.geometry.yStart : Qt.point(0, 0)
+            endPoint: root.geometry ? root.geometry.yEnd : Qt.point(0, 0)
+            color: root.yAxisColor
+            lineWidth: root.lineWidth
+        }
 
-            // Draw X axis (red)
-            arrowPrimitive.draw(ctx, geometry.xStart, geometry.xEnd, root.xAxisColor, root.lineWidth)
-
-            // Draw Y axis (green)
-            arrowPrimitive.draw(ctx, geometry.yStart, geometry.yEnd, root.yAxisColor, root.lineWidth)
-
-            // Draw Z axis (blue)
-            arrowPrimitive.draw(ctx, geometry.zStart, geometry.zEnd, root.zAxisColor, root.lineWidth)
+        // Z axis (blue)
+        ArrowRenderer {
+            anchors.fill: parent
+            startPoint: root.geometry ? root.geometry.zStart : Qt.point(0, 0)
+            endPoint: root.geometry ? root.geometry.zEnd : Qt.point(0, 0)
+            color: root.zAxisColor
+            lineWidth: root.lineWidth
         }
     }
 
     // Geometric hit detection using screen-space geometry (uses HitTester)
     function getHitRegion(x, y) {
-        var geometry = calculateGizmoGeometry()
-        return HitTester.testTranslationGizmoHit(Qt.point(x, y), geometry, 10)
+        var geom = calculateGizmoGeometry()
+        return HitTester.testTranslationGizmoHit(Qt.point(x, y), geom, 10)
     }
 
     // Mouse interaction
@@ -205,7 +203,7 @@ Item {
 
                 mouse.accepted = true
                 preventStealing = true
-                root.repaintGizmo()
+                root.updateGeometry()
             } else if (hitInfo.type === "plane") {
                 root.activeAxis = GizmoEnums.Axis.None
                 root.activePlane = hitInfo.plane
@@ -232,7 +230,7 @@ Item {
 
                 mouse.accepted = true
                 preventStealing = true
-                root.repaintGizmo()
+                root.updateGeometry()
             } else {
                 // No hit - allow camera control
                 root.activeAxis = GizmoEnums.Axis.None
@@ -305,7 +303,7 @@ Item {
                 root.axisTranslationDelta(root.activeAxis, root.transformMode, deltaT, root.snapEnabled)
             }
 
-            root.repaintGizmo()
+            root.updateGeometry()
         }
 
         onReleased: (mouse) => {
@@ -323,20 +321,20 @@ Item {
             root.activeAxis = GizmoEnums.Axis.None
             root.activePlane = GizmoEnums.Plane.None
             preventStealing = false
-            root.repaintGizmo()
+            root.updateGeometry()
         }
     }
 
-    // Helper function to repaint both canvases
+    // Legacy API compatibility - repaintGizmo now updates geometry
     function repaintGizmo() {
-        canvas.requestPaint()
+        updateGeometry()
     }
 
     // Repaint when target position changes
     Connections {
         target: root.targetNode
         function onPositionChanged() {
-            root.repaintGizmo()
+            root.updateGeometry()
         }
     }
 
@@ -345,7 +343,7 @@ Item {
         target: root.targetNode
         enabled: root.transformMode === GizmoEnums.TransformMode.Local
         function onRotationChanged() {
-            root.repaintGizmo()
+            root.updateGeometry()
         }
     }
 
@@ -353,14 +351,22 @@ Item {
     Connections {
         target: root.view3d ? root.view3d.camera : null
         function onPositionChanged() {
-            root.repaintGizmo()
+            root.updateGeometry()
         }
         function onRotationChanged() {
-            root.repaintGizmo()
+            root.updateGeometry()
         }
     }
 
+    // Handle property changes that require geometry update
+    onTargetNodeChanged: updateGeometry()
+    onTransformModeChanged: updateGeometry()
+    onGizmoSizeChanged: updateGeometry()
+    onMaxScreenSizeChanged: updateGeometry()
+    onArrowStartRatioChanged: updateGeometry()
+    onArrowEndRatioChanged: updateGeometry()
+
     Component.onCompleted: {
-        repaintGizmo()
+        updateGeometry()
     }
 }
