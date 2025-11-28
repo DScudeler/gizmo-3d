@@ -63,6 +63,9 @@ Item {
     readonly property color zAxisColor: activeAxis === GizmoEnums.Axis.Z ? "#6666ff" : "#0000ff"
     readonly property color uniformColor: activeAxis === GizmoEnums.Axis.Uniform ? "#ffff66" : "#ffff00"
 
+    // When false, internal canvas is hidden (for shared canvas in GlobalGizmo)
+    property bool useInternalCanvas: true
+
     anchors.fill: parent
 
     // Helper function to calculate arrow geometry (uses geometry calculator)
@@ -95,31 +98,36 @@ Item {
         lineWidth: 1
     }
 
-    // Visible canvas for rendering
+    // Draw gizmo to an external context (for shared canvas in GlobalGizmo)
+    function drawToContext(ctx) {
+        var geometry = calculateGizmoGeometry()
+        if (!geometry) return
+
+        // Draw uniform scale handle at center
+        squareHandlePrimitive.draw(ctx, geometry.center, uniformColor, 8)
+
+        // Draw X axis (red) with square end
+        arrowPrimitive.drawWithSquare(ctx, geometry.xStart, geometry.xEnd, xAxisColor, lineWidth, 12)
+
+        // Draw Y axis (green) with square end
+        arrowPrimitive.drawWithSquare(ctx, geometry.yStart, geometry.yEnd, yAxisColor, lineWidth, 12)
+
+        // Draw Z axis (blue) with square end
+        arrowPrimitive.drawWithSquare(ctx, geometry.zStart, geometry.zEnd, zAxisColor, lineWidth, 12)
+    }
+
+    // Visible canvas for rendering (only used in standalone mode)
     Canvas {
         id: canvas
         anchors.fill: parent
+        visible: root.useInternalCanvas
         renderStrategy: Canvas.Threaded
         renderTarget: Canvas.FramebufferObject
 
         onPaint: {
-            var geometry = root.calculateGizmoGeometry()
-            if (!geometry) return
-
             var ctx = getContext("2d", { alpha: true })
             ctx.clearRect(0, 0, width, height)
-
-            // Draw uniform scale handle at center
-            squareHandlePrimitive.draw(ctx, geometry.center, root.uniformColor, 8)
-
-            // Draw X axis (red) with square end
-            arrowPrimitive.drawWithSquare(ctx, geometry.xStart, geometry.xEnd, root.xAxisColor, root.lineWidth, 12)
-
-            // Draw Y axis (green) with square end
-            arrowPrimitive.drawWithSquare(ctx, geometry.yStart, geometry.yEnd, root.yAxisColor, root.lineWidth, 12)
-
-            // Draw Z axis (blue) with square end
-            arrowPrimitive.drawWithSquare(ctx, geometry.zStart, geometry.zEnd, root.zAxisColor, root.lineWidth, 12)
+            root.drawToContext(ctx)
         }
     }
 
@@ -312,32 +320,18 @@ Item {
 
     // Helper function to repaint canvas
     function repaintGizmo() {
-        canvas.requestPaint()
-    }
-
-    // Repaint when target position changes
-    Connections {
-        target: root.targetNode
-        function onPositionChanged() {
-            root.repaintGizmo()
-        }
-        function onScaleChanged() {
-            root.repaintGizmo()
+        if (useInternalCanvas) {
+            canvas.requestPaint()
         }
     }
 
-    // Repaint when target rotation changes (needed for local mode)
-    Connections {
-        target: root.targetNode
-        enabled: root.transformMode === GizmoEnums.TransformMode.Local
-        function onRotationChanged() {
-            root.repaintGizmo()
-        }
-    }
+    // Property bindings for repaint triggers (declarative approach)
+    onTargetPositionChanged: repaintGizmo()
+    onCurrentAxesChanged: repaintGizmo()
 
-    // Repaint when view3d camera changes
+    // Repaint when view3d camera changes (only when using internal canvas)
     Connections {
-        target: root.view3d ? root.view3d.camera : null
+        target: root.view3d && root.useInternalCanvas ? root.view3d.camera : null
         function onPositionChanged() {
             root.repaintGizmo()
         }

@@ -63,6 +63,9 @@ Item {
     readonly property color yAxisColor: activeAxis === GizmoEnums.Axis.Y ? "#66ff66" : "#00ff00"
     readonly property color zAxisColor: activeAxis === GizmoEnums.Axis.Z ? "#6666ff" : "#0000ff"
 
+    // When false, internal canvas is hidden (for shared canvas in GlobalGizmo)
+    property bool useInternalCanvas: true
+
 
     // ========================================
     // Circle Geometry Calculation
@@ -112,70 +115,75 @@ Item {
         lineJoin: "round"
     }
 
+    // Draw gizmo to an external context (for shared canvas in GlobalGizmo)
+    function drawToContext(ctx) {
+        var geometry = calculateCircleGeometry()
+        if (!geometry) return
+
+        // Enable anti-aliasing for smooth appearance
+        ctx.antialias = true
+        ctx.imageSmoothingEnabled = true
+
+        // Calculate camera-facing angles for each plane (used for partial arc rendering when inactive)
+        // Use currentAxes to support local mode - angles must match circle geometry
+        var axes = currentAxes
+        var yzFacingAngle = calculateCameraFacingAngle(axes.x, axes.y)  // YZ plane, Y reference
+        var zxFacingAngle = calculateCameraFacingAngle(axes.y, axes.z)  // ZX plane, Z reference
+        var xyFacingAngle = calculateCameraFacingAngle(axes.z, axes.x)  // XY plane, X reference
+
+        var arcRangeRadians = inactiveArcRange * (Math.PI / 180)
+
+        // Draw circles with active arc highlighting
+        // YZ plane (X-axis rotation) - Red
+        if (activeAxis === GizmoEnums.Axis.X) {
+            // Active: full circle with filled rotation arc
+            circlePrimitive.draw(ctx, geometry.circles.yz, geometry.center, xAxisColor, 4, true,
+                      dragStartAngle, currentAngle, "YZ-plane(X-RED-ACTIVE)", false)
+        } else {
+            // Inactive: partial arc facing camera
+            circlePrimitive.draw(ctx, geometry.circles.yz, geometry.center, "#ff0000", 2, false,
+                      undefined, undefined, "YZ-plane(X-RED-inactive)", true, yzFacingAngle, arcRangeRadians)
+        }
+
+        // ZX plane (Y-axis rotation) - Green
+        if (activeAxis === GizmoEnums.Axis.Y) {
+            // Active: full circle with filled rotation arc
+            circlePrimitive.draw(ctx, geometry.circles.zx, geometry.center, yAxisColor, 4, true,
+                      dragStartAngle, currentAngle, "ZX-plane(Y-GREEN-ACTIVE)", false)
+        } else {
+            // Inactive: partial arc facing camera
+            circlePrimitive.draw(ctx, geometry.circles.zx, geometry.center, "#00ff00", 2, false,
+                      undefined, undefined, "ZX-plane(Y-GREEN-inactive)", true, zxFacingAngle, arcRangeRadians)
+        }
+
+        // XY plane (Z-axis rotation) - Blue
+        if (activeAxis === GizmoEnums.Axis.Z) {
+            // Active: full circle with filled rotation arc
+            circlePrimitive.draw(ctx, geometry.circles.xy, geometry.center, zAxisColor, 4, true,
+                      dragStartAngle, currentAngle, "XY-plane(Z-BLUE-ACTIVE)", false)
+        } else {
+            // Inactive: partial arc facing camera
+            circlePrimitive.draw(ctx, geometry.circles.xy, geometry.center, "#0000ff", 2, false,
+                      undefined, undefined, "XY-plane(Z-BLUE-inactive)", true, xyFacingAngle, arcRangeRadians)
+        }
+    }
+
     // ========================================
-    // Visible Canvas
+    // Visible Canvas (only used in standalone mode)
     // ========================================
 
     Canvas {
         id: canvas
         anchors.fill: parent
+        visible: root.useInternalCanvas
         renderStrategy: Canvas.Threaded
         renderTarget: Canvas.FramebufferObject
 
         onPaint: {
-            var geometry = root.calculateCircleGeometry()
-            if (!geometry) return
-
             var ctx = getContext("2d", { alpha: true })
             ctx.reset()
             ctx.clearRect(0, 0, width, height)
-
-            // Enable anti-aliasing for smooth appearance
-            ctx.antialias = true
-            ctx.imageSmoothingEnabled = true
-
-            // Calculate camera-facing angles for each plane (used for partial arc rendering when inactive)
-            // Use currentAxes to support local mode - angles must match circle geometry
-            var axes = root.currentAxes
-            var yzFacingAngle = root.calculateCameraFacingAngle(axes.x, axes.y)  // YZ plane, Y reference
-            var zxFacingAngle = root.calculateCameraFacingAngle(axes.y, axes.z)  // ZX plane, Z reference
-            var xyFacingAngle = root.calculateCameraFacingAngle(axes.z, axes.x)  // XY plane, X reference
-
-            var arcRangeRadians = root.inactiveArcRange * (Math.PI / 180)
-
-            // Draw circles with active arc highlighting
-            // YZ plane (X-axis rotation) - Red
-            if (root.activeAxis === GizmoEnums.Axis.X) {
-                // Active: full circle with filled rotation arc
-                circlePrimitive.draw(ctx, geometry.circles.yz, geometry.center, root.xAxisColor, 4, true,
-                          root.dragStartAngle, root.currentAngle, "YZ-plane(X-RED-ACTIVE)", false)
-            } else {
-                // Inactive: partial arc facing camera
-                circlePrimitive.draw(ctx, geometry.circles.yz, geometry.center, "#ff0000", 2, false,
-                          undefined, undefined, "YZ-plane(X-RED-inactive)", true, yzFacingAngle, arcRangeRadians)
-            }
-
-            // ZX plane (Y-axis rotation) - Green
-            if (root.activeAxis === GizmoEnums.Axis.Y) {
-                // Active: full circle with filled rotation arc
-                circlePrimitive.draw(ctx, geometry.circles.zx, geometry.center, root.yAxisColor, 4, true,
-                          root.dragStartAngle, root.currentAngle, "ZX-plane(Y-GREEN-ACTIVE)", false)
-            } else {
-                // Inactive: partial arc facing camera
-                circlePrimitive.draw(ctx, geometry.circles.zx, geometry.center, "#00ff00", 2, false,
-                          undefined, undefined, "ZX-plane(Y-GREEN-inactive)", true, zxFacingAngle, arcRangeRadians)
-            }
-
-            // XY plane (Z-axis rotation) - Blue
-            if (root.activeAxis === GizmoEnums.Axis.Z) {
-                // Active: full circle with filled rotation arc
-                circlePrimitive.draw(ctx, geometry.circles.xy, geometry.center, root.zAxisColor, 4, true,
-                          root.dragStartAngle, root.currentAngle, "XY-plane(Z-BLUE-ACTIVE)", false)
-            } else {
-                // Inactive: partial arc facing camera
-                circlePrimitive.draw(ctx, geometry.circles.xy, geometry.center, "#0000ff", 2, false,
-                          undefined, undefined, "XY-plane(Z-BLUE-inactive)", true, xyFacingAngle, arcRangeRadians)
-            }
+            root.drawToContext(ctx)
         }
     }
 
@@ -385,28 +393,18 @@ Item {
     // ========================================
 
     function repaintGizmo() {
-        canvas.requestPaint()
-    }
-
-    // ========================================
-    // Automatic Repaint Connections
-    // ========================================
-
-    Connections {
-        target: root.targetNode
-        function onPositionChanged() {
-            root.repaintGizmo()  // Binding already updated targetPosition
-        }
-        function onRotationChanged() {
-            root.repaintGizmo()
-        }
-        function onEulerRotationChanged() {
-            root.repaintGizmo()
+        if (useInternalCanvas) {
+            canvas.requestPaint()
         }
     }
 
+    // Property bindings for repaint triggers (declarative approach)
+    onTargetPositionChanged: repaintGizmo()
+    onCurrentAxesChanged: repaintGizmo()
+
+    // Repaint when view3d camera changes (only when using internal canvas)
     Connections {
-        target: root.view3d ? root.view3d.camera : null
+        target: root.view3d && root.useInternalCanvas ? root.view3d.camera : null
         function onPositionChanged() {
             root.repaintGizmo()
         }
@@ -416,6 +414,6 @@ Item {
     }
 
     Component.onCompleted: {
-        repaintGizmo()  // Binding handles position initialization
+        repaintGizmo()
     }
 }

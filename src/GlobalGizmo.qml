@@ -87,6 +87,48 @@ Item {
     // Computed property: are we in composite mode with multiple gizmos sharing arrow space?
     readonly property bool isCompositeMode: mode === "all"
 
+    // Computed property: should we use shared canvas (composite modes with multiple gizmos)
+    readonly property bool useSharedCanvas: mode === "all" || mode === "both"
+
+    // Property bindings for centralized repaint triggers
+    readonly property vector3d _targetPos: targetNode ? targetNode.position : Qt.vector3d(0, 0, 0)
+    readonly property quaternion _targetRot: targetNode ? targetNode.rotation : Qt.quaternion(1, 0, 0, 0)
+    readonly property vector3d _cameraPos: view3d && view3d.camera ? view3d.camera.position : Qt.vector3d(0, 0, 0)
+    readonly property quaternion _cameraRot: view3d && view3d.camera ? view3d.camera.rotation : Qt.quaternion(1, 0, 0, 0)
+
+    // Centralized repaint triggers (only when using shared canvas)
+    on_TargetPosChanged: if (useSharedCanvas) sharedCanvas.requestPaint()
+    on_TargetRotChanged: if (useSharedCanvas) sharedCanvas.requestPaint()
+    on_CameraPosChanged: if (useSharedCanvas) sharedCanvas.requestPaint()
+    on_CameraRotChanged: if (useSharedCanvas) sharedCanvas.requestPaint()
+    onTransformModeChanged: if (useSharedCanvas) sharedCanvas.requestPaint()
+    onIsActiveChanged: if (useSharedCanvas) sharedCanvas.requestPaint()
+    onModeChanged: if (useSharedCanvas) sharedCanvas.requestPaint()
+
+    Component.onCompleted: {
+        if (useSharedCanvas) sharedCanvas.requestPaint()
+    }
+
+    // Shared canvas for composite modes (draws all visible gizmos in single paint cycle)
+    Canvas {
+        id: sharedCanvas
+        anchors.fill: parent
+        visible: root.useSharedCanvas
+        renderStrategy: Canvas.Threaded
+        renderTarget: Canvas.FramebufferObject
+
+        onPaint: {
+            var ctx = getContext("2d", { alpha: true })
+            ctx.clearRect(0, 0, width, height)
+
+            // Draw all visible gizmos to single context
+            // Order: Scale (innermost) → Translation (middle) → Rotation (outermost)
+            if (scaleGizmo.visible) scaleGizmo.drawToContext(ctx)
+            if (translationGizmo.visible) translationGizmo.drawToContext(ctx)
+            if (rotationGizmo.visible) rotationGizmo.drawToContext(ctx)
+        }
+    }
+
     // ScaleGizmo child
     ScaleGizmo {
         id: scaleGizmo
@@ -108,6 +150,9 @@ Item {
         // Set arrow ratios for composite mode
         arrowStartRatio: 0.0
         arrowEndRatio: root.isCompositeMode ? 0.5 : 1.0
+
+        // Use internal canvas only when in standalone mode
+        useInternalCanvas: root.mode === "scale"
     }
 
     // TranslationGizmo child
@@ -131,6 +176,9 @@ Item {
         // Set arrow ratios for composite mode
         arrowStartRatio: root.isCompositeMode ? 0.5 : 0.0
         arrowEndRatio: 1.0
+
+        // Use internal canvas only when in standalone mode
+        useInternalCanvas: root.mode === "translate"
     }
 
     // RotationGizmo child
@@ -150,6 +198,9 @@ Item {
         // Bind rotation-specific properties
         gizmoSize: root.gizmoSize
         snapAngle: root.snapAngle
+
+        // Use internal canvas only when in standalone mode
+        useInternalCanvas: root.mode === "rotate"
     }
 
     // Forward translation signals

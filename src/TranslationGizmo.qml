@@ -73,6 +73,9 @@ Item {
     readonly property color xzPlaneColor: activePlane === GizmoEnums.Plane.XZ ? "#ff99ff" : "#ff00ff"
     readonly property color yzPlaneColor: activePlane === GizmoEnums.Plane.YZ ? "#99ffff" : "#00ffff"
 
+    // When false, internal canvas is hidden (for shared canvas in GlobalGizmo)
+    property bool useInternalCanvas: true
+
     anchors.fill: parent
 
     // Helper function to calculate arrow geometry and plane handles (uses new geometry calculator)
@@ -117,44 +120,49 @@ Item {
         activeLineWidth: 3
     }
 
-    // Visible canvas for rendering
+    // Draw gizmo to an external context (for shared canvas in GlobalGizmo)
+    function drawToContext(ctx) {
+        var geometry = calculateGizmoGeometry()
+        if (!geometry) return
+
+        // Draw planes first (so arrows are on top)
+        // XY plane (yellow)
+        if (geometry.planes.xy.length === 4) {
+            planePrimitive.draw(ctx, geometry.planes.xy, xyPlaneColor, activePlane === GizmoEnums.Plane.XY)
+        }
+
+        // XZ plane (magenta)
+        if (geometry.planes.xz.length === 4) {
+            planePrimitive.draw(ctx, geometry.planes.xz, xzPlaneColor, activePlane === GizmoEnums.Plane.XZ)
+        }
+
+        // YZ plane (cyan)
+        if (geometry.planes.yz.length === 4) {
+            planePrimitive.draw(ctx, geometry.planes.yz, yzPlaneColor, activePlane === GizmoEnums.Plane.YZ)
+        }
+
+        // Draw X axis (red)
+        arrowPrimitive.draw(ctx, geometry.xStart, geometry.xEnd, xAxisColor, lineWidth)
+
+        // Draw Y axis (green)
+        arrowPrimitive.draw(ctx, geometry.yStart, geometry.yEnd, yAxisColor, lineWidth)
+
+        // Draw Z axis (blue)
+        arrowPrimitive.draw(ctx, geometry.zStart, geometry.zEnd, zAxisColor, lineWidth)
+    }
+
+    // Visible canvas for rendering (only used in standalone mode)
     Canvas {
         id: canvas
         anchors.fill: parent
+        visible: root.useInternalCanvas
         renderStrategy: Canvas.Threaded
         renderTarget: Canvas.FramebufferObject
 
         onPaint: {
-            var geometry = root.calculateGizmoGeometry()
-            if (!geometry) return
-
             var ctx = getContext("2d", { alpha: true })
             ctx.clearRect(0, 0, width, height)
-
-            // Draw planes first (so arrows are on top)
-            // XY plane (yellow)
-            if (geometry.planes.xy.length === 4) {
-                planePrimitive.draw(ctx, geometry.planes.xy, root.xyPlaneColor, root.activePlane === GizmoEnums.Plane.XY)
-            }
-
-            // XZ plane (magenta)
-            if (geometry.planes.xz.length === 4) {
-                planePrimitive.draw(ctx, geometry.planes.xz, root.xzPlaneColor, root.activePlane === GizmoEnums.Plane.XZ)
-            }
-
-            // YZ plane (cyan)
-            if (geometry.planes.yz.length === 4) {
-                planePrimitive.draw(ctx, geometry.planes.yz, root.yzPlaneColor, root.activePlane === GizmoEnums.Plane.YZ)
-            }
-
-            // Draw X axis (red)
-            arrowPrimitive.draw(ctx, geometry.xStart, geometry.xEnd, root.xAxisColor, root.lineWidth)
-
-            // Draw Y axis (green)
-            arrowPrimitive.draw(ctx, geometry.yStart, geometry.yEnd, root.yAxisColor, root.lineWidth)
-
-            // Draw Z axis (blue)
-            arrowPrimitive.draw(ctx, geometry.zStart, geometry.zEnd, root.zAxisColor, root.lineWidth)
+            root.drawToContext(ctx)
         }
     }
 
@@ -327,31 +335,20 @@ Item {
         }
     }
 
-    // Helper function to repaint both canvases
+    // Helper function to repaint canvas
     function repaintGizmo() {
-        canvas.requestPaint()
-    }
-
-    // Repaint when target position changes
-    Connections {
-        target: root.targetNode
-        function onPositionChanged() {
-            root.repaintGizmo()
+        if (useInternalCanvas) {
+            canvas.requestPaint()
         }
     }
 
-    // Repaint when target rotation changes (needed for local mode)
-    Connections {
-        target: root.targetNode
-        enabled: root.transformMode === GizmoEnums.TransformMode.Local
-        function onRotationChanged() {
-            root.repaintGizmo()
-        }
-    }
+    // Property bindings for repaint triggers (declarative approach)
+    onTargetPositionChanged: repaintGizmo()
+    onCurrentAxesChanged: repaintGizmo()
 
-    // Repaint when view3d camera changes
+    // Repaint when view3d camera changes (only when using internal canvas)
     Connections {
-        target: root.view3d ? root.view3d.camera : null
+        target: root.view3d && root.useInternalCanvas ? root.view3d.camera : null
         function onPositionChanged() {
             root.repaintGizmo()
         }
