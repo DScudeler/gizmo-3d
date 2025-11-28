@@ -51,7 +51,8 @@ Item {
     // Combined arrow shape (shaft + head) - single Shape for performance
     Shape {
         anchors.fill: parent
-        antialiasing: true
+        layer.enabled: true
+        layer.samples: 4
 
         // Arrow shaft
         ShapePath {

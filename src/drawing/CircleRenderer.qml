@@ -155,7 +155,8 @@ Item {
     Shape {
         anchors.fill: parent
         visible: root.filled && root.points.length > 0
-        antialiasing: true
+        layer.enabled: true
+        layer.samples: 4
 
         ShapePath {
             strokeColor: "transparent"
@@ -171,7 +172,8 @@ Item {
     Shape {
         anchors.fill: parent
         visible: root.points.length > 0
-        antialiasing: true
+        layer.enabled: true
+        layer.samples: 4
 
         ShapePath {
             strokeColor: root.color

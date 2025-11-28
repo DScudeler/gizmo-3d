@@ -42,7 +42,8 @@ Item {
     // Combined shape (shaft + square handle) - single Shape for performance
     Shape {
         anchors.fill: parent
-        antialiasing: true
+        layer.enabled: true
+        layer.samples: 4
 
         // Arrow shaft
         ShapePath {
