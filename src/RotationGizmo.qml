@@ -60,74 +60,77 @@ Item {
     property var cachedProjector: null
     property var lastHitTestGeometry: null
 
-    // Initialization flag to trigger initial geometry calculation
-    property bool initialized: false
-    Component.onCompleted: initialized = true
+    // External control flag - when true, parent manages geometry updates via FrameAnimation
+    property bool managedByParent: false
 
-    // Camera tracking properties for reactive geometry binding
-    readonly property vector3d cameraPosition: view3d && view3d.camera ? view3d.camera.scenePosition : Qt.vector3d(0, 0, 0)
-    readonly property quaternion cameraRotation: view3d && view3d.camera ? view3d.camera.sceneRotation : Qt.quaternion(1, 0, 0, 0)
+    // Geometry property - updated by FrameAnimation or parent coordinator
+    property var geometry: null
 
-    // Reactive geometry binding - auto-updates when dependencies change
-    readonly property var geometry: {
-        // Reference these properties to establish binding dependencies
-        var _init = initialized
-        var _cp = cameraPosition
-        var _cr = cameraRotation
+    // Camera-facing angles for partial arc rendering - updated by FrameAnimation
+    property real yzFacingAngle: 0
+    property real zxFacingAngle: 0
+    property real xyFacingAngle: 0
 
-        if (!view3d || !view3d.camera || !targetNode) return null
+    // Previous frame radii for temporal smoothing to eliminate jitter
+    property var _previousRadii: null
 
-        // Use cached projector during drag, otherwise create new one
-        var projector = isDragging && cachedProjector
-            ? cachedProjector
-            : View3DProjectionAdapter.createProjector(view3d)
-        if (!projector) return null
+    // Internal FrameAnimation for standalone operation (disabled when managed by parent)
+    FrameAnimation {
+        id: internalAnimation
+        running: !root.managedByParent && root.visible && root.view3d && root.targetNode
+
+        onTriggered: {
+            // Update geometry every frame - no dirty check to avoid sync issues
+            // between QML property updates and View3D internal state
+            var projector = View3DProjectionAdapter.createProjector(root.view3d)
+            if (projector) {
+                root.updateGeometry(projector)
+            }
+        }
+    }
+
+    /**
+     * Updates geometry and facing angles using the provided projector.
+     * Called by parent coordinator (GlobalGizmo) or internal FrameAnimation.
+     * Uses ONE shared projector for all calculations (was 4 projectors before).
+     * @param projector - Shared projector object from View3DProjectionAdapter
+     */
+    function updateGeometry(projector) {
+        if (!view3d || !view3d.camera || !targetNode) {
+            geometry = null
+            return
+        }
 
         // Use drag start axes during active rotation for stable wedge rendering
-        // This ensures the filled wedge origin stays fixed at the click position
         var axesToUse = (activeAxis !== GizmoEnums.Axis.None && dragStartAxes) ? dragStartAxes : currentAxes
 
-        return RotationGeometryCalculator.calculateCircleGeometry({
+        // Calculate main geometry with temporal smoothing
+        var newGeometry = RotationGeometryCalculator.calculateCircleGeometry({
             projector: projector,
-            targetPosition: targetPosition,
+            targetPosition: targetNode.position,
             axes: axesToUse,
             gizmoSize: gizmoSize,
             maxScreenRadius: maxScreenRadius,
-            segments: 64
+            segments: 64,
+            previousRadii: _previousRadii,
+            smoothingFactor: 0.3
         })
-    }
 
-    // Camera-facing angles for partial arc rendering - reactive bindings
-    readonly property real yzFacingAngle: {
-        var _cp = cameraPosition
-        var _cr = cameraRotation
-        if (!view3d || !view3d.camera) return 0
-        var projector = View3DProjectionAdapter.createProjector(view3d)
-        if (!projector) return 0
-        return RotationGeometryCalculator.calculateCameraFacingAngle(
-            targetPosition, currentAxes.x, currentAxes.y, projector
+        geometry = newGeometry
+        // Save radii for next frame smoothing
+        if (newGeometry && newGeometry.radii) {
+            _previousRadii = newGeometry.radii
+        }
+
+        // Calculate all 3 facing angles with the SAME projector (was 3 separate projectors)
+        yzFacingAngle = RotationGeometryCalculator.calculateCameraFacingAngle(
+            targetNode.position, currentAxes.x, currentAxes.y, projector
         )
-    }
-
-    readonly property real zxFacingAngle: {
-        var _cp = cameraPosition
-        var _cr = cameraRotation
-        if (!view3d || !view3d.camera) return 0
-        var projector = View3DProjectionAdapter.createProjector(view3d)
-        if (!projector) return 0
-        return RotationGeometryCalculator.calculateCameraFacingAngle(
-            targetPosition, currentAxes.y, currentAxes.z, projector
+        zxFacingAngle = RotationGeometryCalculator.calculateCameraFacingAngle(
+            targetNode.position, currentAxes.y, currentAxes.z, projector
         )
-    }
-
-    readonly property real xyFacingAngle: {
-        var _cp = cameraPosition
-        var _cr = cameraRotation
-        if (!view3d || !view3d.camera) return 0
-        var projector = View3DProjectionAdapter.createProjector(view3d)
-        if (!projector) return 0
-        return RotationGeometryCalculator.calculateCameraFacingAngle(
-            targetPosition, currentAxes.z, currentAxes.x, projector
+        xyFacingAngle = RotationGeometryCalculator.calculateCameraFacingAngle(
+            targetNode.position, currentAxes.z, currentAxes.x, projector
         )
     }
 
@@ -139,7 +142,7 @@ Item {
         var axesToUse = (activeAxis !== GizmoEnums.Axis.None && dragStartAxes) ? dragStartAxes : currentAxes
         return RotationGeometryCalculator.calculateCircleGeometry({
             projector: projector,
-            targetPosition: targetPosition,
+            targetPosition: targetNode.position,
             axes: axesToUse,
             gizmoSize: gizmoSize,
             maxScreenRadius: maxScreenRadius,
@@ -153,11 +156,11 @@ Item {
 
     // Calculate the angle on a rotation plane that faces the camera (uses geometry calculator)
     function calculateCameraFacingAngle(planeNormal, referenceAxis) {
-        if (!view3d || !view3d.camera) return 0
+        if (!view3d || !view3d.camera || !targetNode) return 0
         var projector = View3DProjectionAdapter.createProjector(view3d)
         if (!projector) return 0
         return RotationGeometryCalculator.calculateCameraFacingAngle(
-            targetPosition, planeNormal, referenceAxis, projector
+            targetNode.position, planeNormal, referenceAxis, projector
         )
     }
 

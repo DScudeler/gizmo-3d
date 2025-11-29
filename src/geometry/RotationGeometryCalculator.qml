@@ -7,6 +7,17 @@ import Gizmo3D
 
 QtObject {
     /**
+     * Linear interpolation between two values
+     * @param a - Start value
+     * @param b - End value
+     * @param t - Interpolation factor (0-1)
+     * @returns Interpolated value
+     */
+    function lerp(a, b, t) {
+        return a + (b - a) * t
+    }
+
+    /**
      * Calculates circle geometry for rotation gizmo
      * @param config - Configuration object:
      *   {
@@ -16,6 +27,8 @@ QtObject {
      *     gizmoSize: real - Base screen-space size in pixels
      *     maxScreenRadius: real - Maximum screen-space radius in pixels
      *     segments: int - Number of segments for circle polylines (default: 64)
+     *     previousRadii: {xy, yz, zx} - Previous frame radii for smoothing (optional)
+     *     smoothingFactor: real - Lerp factor for temporal smoothing (default: 0.3)
      *   }
      * @returns Geometry object or null if invalid config:
      *   {
@@ -44,6 +57,8 @@ QtObject {
         var gizmoSize = config.gizmoSize || 80.0
         var maxScreenRadius = config.maxScreenRadius || 100.0
         var segments = config.segments || 64
+        var previousRadii = config.previousRadii || null
+        var smoothingFactor = config.smoothingFactor !== undefined ? config.smoothingFactor : 0.3
 
         // Project target position to screen
         var center = GizmoProjection.projectWorldToScreen(targetPosition, projector)
@@ -59,9 +74,21 @@ QtObject {
         var zxPlaneScale = (zAxisScale + xAxisScale) / 2
 
         // Calculate radius for each plane based on its own projection
-        var radiusXY = xyPlaneScale > 0 ? gizmoSize / xyPlaneScale : 1.0
-        var radiusYZ = yzPlaneScale > 0 ? gizmoSize / yzPlaneScale : 1.0
-        var radiusZX = zxPlaneScale > 0 ? gizmoSize / zxPlaneScale : 1.0
+        var rawRadiusXY = xyPlaneScale > 0 ? gizmoSize / xyPlaneScale : 1.0
+        var rawRadiusYZ = yzPlaneScale > 0 ? gizmoSize / yzPlaneScale : 1.0
+        var rawRadiusZX = zxPlaneScale > 0 ? gizmoSize / zxPlaneScale : 1.0
+
+        // Apply temporal smoothing to eliminate jitter during camera movement
+        var radiusXY, radiusYZ, radiusZX
+        if (previousRadii) {
+            radiusXY = lerp(previousRadii.xy, rawRadiusXY, smoothingFactor)
+            radiusYZ = lerp(previousRadii.yz, rawRadiusYZ, smoothingFactor)
+            radiusZX = lerp(previousRadii.zx, rawRadiusZX, smoothingFactor)
+        } else {
+            radiusXY = rawRadiusXY
+            radiusYZ = rawRadiusYZ
+            radiusZX = rawRadiusZX
+        }
 
         // Generate circle points for each plane
         var circlePoints = {

@@ -87,12 +87,39 @@ Item {
     // Computed property: are we in composite mode with multiple gizmos sharing arrow space?
     readonly property bool isCompositeMode: mode === "all"
 
+    // Coordinating FrameAnimation - updates all visible child gizmos with ONE shared projector
+    FrameAnimation {
+        id: coordinatorAnimation
+        running: root.visible && root.view3d && root.targetNode
+
+        onTriggered: {
+            // Update geometry every frame - no dirty check to avoid sync issues
+            // between QML property updates and View3D internal state
+            var projector = View3DProjectionAdapter.createProjector(root.view3d)
+            if (!projector) return
+
+            // Update all visible child gizmos with shared projector
+            if (scaleGizmo.visible) {
+                scaleGizmo.updateGeometry(projector)
+            }
+            if (translationGizmo.visible) {
+                translationGizmo.updateGeometry(projector)
+            }
+            if (rotationGizmo.visible) {
+                rotationGizmo.updateGeometry(projector)
+            }
+        }
+    }
+
     // ScaleGizmo child
     ScaleGizmo {
         id: scaleGizmo
         anchors.fill: parent
         visible: root.mode === "scale" || root.mode === "all"
         z: root.mode === "all" ? 0 : 0
+
+        // Parent manages geometry updates via coordinating FrameAnimation
+        managedByParent: true
 
         // Bind common properties
         view3d: root.view3d
@@ -117,6 +144,9 @@ Item {
         visible: root.mode === "translate" || root.mode === "both" || root.mode === "all"
         z: root.mode === "both" || root.mode === "all" ? 0 : 0
 
+        // Parent manages geometry updates via coordinating FrameAnimation
+        managedByParent: true
+
         // Bind common properties
         view3d: root.view3d
         targetNode: root.targetNode
@@ -139,6 +169,9 @@ Item {
         anchors.fill: parent
         visible: root.mode === "rotate" || root.mode === "both" || root.mode === "all"
         z: root.mode === "both" || root.mode === "all" ? 1 : 0  // Rotation on top when multiple visible
+
+        // Parent manages geometry updates via coordinating FrameAnimation
+        managedByParent: true
 
         // Bind common properties
         view3d: root.view3d

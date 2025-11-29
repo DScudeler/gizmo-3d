@@ -60,32 +60,41 @@ Item {
     property var cachedProjector: null
     property var lastHitTestGeometry: null
 
-    // Initialization flag to trigger initial geometry calculation
-    property bool initialized: false
-    Component.onCompleted: initialized = true
+    // External control flag - when true, parent manages geometry updates via FrameAnimation
+    property bool managedByParent: false
 
-    // Camera tracking properties for reactive geometry binding
-    readonly property vector3d cameraPosition: view3d && view3d.camera ? view3d.camera.scenePosition : Qt.vector3d(0, 0, 0)
-    readonly property quaternion cameraRotation: view3d && view3d.camera ? view3d.camera.sceneRotation : Qt.quaternion(1, 0, 0, 0)
+    // Geometry property - updated by FrameAnimation or parent coordinator
+    property var geometry: null
 
-    // Reactive geometry binding - auto-updates when dependencies change
-    readonly property var geometry: {
-        // Reference these properties to establish binding dependencies
-        var _init = initialized
-        var _cp = cameraPosition
-        var _cr = cameraRotation
+    // Internal FrameAnimation for standalone operation (disabled when managed by parent)
+    FrameAnimation {
+        id: internalAnimation
+        running: !root.managedByParent && root.visible && root.view3d && root.targetNode
 
-        if (!view3d || !view3d.camera || !targetNode) return null
+        onTriggered: {
+            // Update geometry every frame - no dirty check to avoid sync issues
+            // between QML property updates and View3D internal state
+            var projector = View3DProjectionAdapter.createProjector(root.view3d)
+            if (projector) {
+                root.updateGeometry(projector)
+            }
+        }
+    }
 
-        // Use cached projector during drag, otherwise create new one
-        var projector = isDragging && cachedProjector
-            ? cachedProjector
-            : View3DProjectionAdapter.createProjector(view3d)
-        if (!projector) return null
+    /**
+     * Updates geometry using the provided projector.
+     * Called by parent coordinator (GlobalGizmo) or internal FrameAnimation.
+     * @param projector - Shared projector object from View3DProjectionAdapter
+     */
+    function updateGeometry(projector) {
+        if (!view3d || !view3d.camera || !targetNode) {
+            geometry = null
+            return
+        }
 
-        return ScaleGeometryCalculator.calculateHandleGeometry({
+        geometry = ScaleGeometryCalculator.calculateHandleGeometry({
             projector: projector,
-            targetPosition: targetPosition,
+            targetPosition: targetNode.position,
             axes: currentAxes,
             gizmoSize: gizmoSize,
             maxScreenSize: maxScreenSize,
@@ -101,7 +110,7 @@ Item {
         if (!projector) return null
         return ScaleGeometryCalculator.calculateHandleGeometry({
             projector: projector,
-            targetPosition: targetPosition,
+            targetPosition: targetNode.position,
             axes: currentAxes,
             gizmoSize: gizmoSize,
             maxScreenSize: maxScreenSize,

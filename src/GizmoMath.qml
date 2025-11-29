@@ -55,6 +55,35 @@ QtObject {
         return Math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z)
     }
 
+    /**
+     * Compare two vector3d values for equality within epsilon
+     * @param a - First vector
+     * @param b - Second vector
+     * @param epsilon - Comparison tolerance (default 0.0001)
+     * @returns true if vectors are equal within epsilon
+     */
+    function vectorEquals(a, b, epsilon) {
+        if (!epsilon) epsilon = 0.0001
+        return Math.abs(a.x - b.x) < epsilon
+            && Math.abs(a.y - b.y) < epsilon
+            && Math.abs(a.z - b.z) < epsilon
+    }
+
+    /**
+     * Compare two quaternion values for equality within epsilon
+     * @param a - First quaternion
+     * @param b - Second quaternion
+     * @param epsilon - Comparison tolerance (default 0.0001)
+     * @returns true if quaternions are equal within epsilon
+     */
+    function quaternionEquals(a, b, epsilon) {
+        if (!epsilon) epsilon = 0.0001
+        return Math.abs(a.x - b.x) < epsilon
+            && Math.abs(a.y - b.y) < epsilon
+            && Math.abs(a.z - b.z) < epsilon
+            && Math.abs(a.scalar - b.scalar) < epsilon
+    }
+
     // ========================================
     // Camera Ray Construction
     // ========================================
