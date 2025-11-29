@@ -21,6 +21,9 @@ find_package(Qt6 REQUIRED COMPONENTS
     QuickTest
 )
 
+# Private headers required for ENABLE_TYPE_COMPILER
+find_package(Qt6 COMPONENTS QmlPrivate QuickPrivate QuickShapesPrivate Quick3DPrivate)
+
 # Set Qt6 QML policy QTP0001 after finding Qt
 # This sets the default resource prefix to /qt/qml/ for automatic QML module discovery
 if(COMMAND qt_policy)
