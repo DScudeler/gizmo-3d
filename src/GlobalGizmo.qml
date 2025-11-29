@@ -87,6 +87,8 @@ Item {
     // Computed property: are we in composite mode with multiple gizmos sharing arrow space?
     readonly property bool isCompositeMode: mode === "all"
 
+    visible: targetNode !== null && view3d !== null
+
     // Coordinating FrameAnimation - updates all visible child gizmos with ONE shared projector
     FrameAnimation {
         id: coordinatorAnimation
