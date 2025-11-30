@@ -74,6 +74,8 @@ Item {
     // Previous frame radii for temporal smoothing to eliminate jitter
     property var _previousRadii: null
 
+    visible: targetNode !== null && view3d !== null
+
     // Internal FrameAnimation for standalone operation (disabled when managed by parent)
     FrameAnimation {
         id: internalAnimation

@@ -66,6 +66,8 @@ Item {
     // Geometry property - updated by FrameAnimation or parent coordinator
     property var geometry: null
 
+    visible: targetNode !== null && view3d !== null
+
     // Internal FrameAnimation for standalone operation (disabled when managed by parent)
     FrameAnimation {
         id: internalAnimation
