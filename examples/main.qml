@@ -195,7 +195,7 @@ Window {
         anchors.fill: parent
         view3d: view3d
         targetNode: globalCube
-        mode: globalModeCombo.model[globalModeCombo.currentIndex]
+        mode: globalModeCombo.modeValue
         transformMode: globalTransformModeCombo.transformModeValue
         snapEnabled: globalSnapEnabledCheckbox.checked
         snapIncrement: translationSnapIncrementSpinbox.realValue
@@ -261,7 +261,7 @@ Window {
                   globalCube.scale.x.toFixed(2) + ", " +
                   globalCube.scale.y.toFixed(2) + ", " +
                   globalCube.scale.z.toFixed(2) + ")\n" +
-                  "  Mode: " + globalGizmo.mode + "\n" +
+                  "  Mode: " + globalModeCombo.currentText + "\n" +
                   "  Transform: " + globalGizmo.transformMode + "\n" +
                   "  Snap: " + (globalGizmo.snapEnabled ? "ON" : "OFF")
         }
@@ -702,8 +702,20 @@ Window {
 
                 ComboBox {
                     id: globalModeCombo
-                    model: ["translate", "rotate", "scale", "both", "all"]
-                    currentIndex: 4  // "all" by default
+                    model: ["Translate", "Rotate", "Scale", "Both", "All"]
+                    currentIndex: 4  // All by default
+
+                    // Convert ComboBox index to GizmoEnums.Mode value
+                    readonly property int modeValue: {
+                        switch (currentIndex) {
+                            case 0: return GizmoEnums.Mode.Translate
+                            case 1: return GizmoEnums.Mode.Rotate
+                            case 2: return GizmoEnums.Mode.Scale
+                            case 3: return GizmoEnums.Mode.Both
+                            case 4: return GizmoEnums.Mode.All
+                            default: return GizmoEnums.Mode.Translate
+                        }
+                    }
                 }
             }
 

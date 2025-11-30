@@ -251,11 +251,11 @@ var segments = 32  // Instead of 64
 
 **2. Use Single Gizmo**
 
-Instead of GlobalGizmo in "both" mode, use mode switching:
+Instead of GlobalGizmo in Both mode, use mode switching:
 
 ```qml
 GlobalGizmo {
-    mode: currentMode  // "translate" or "rotate", not "both"
+    mode: currentMode  // GizmoEnums.Mode.Translate or Rotate, not Both
 }
 ```
 

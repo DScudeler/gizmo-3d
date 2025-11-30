@@ -13,7 +13,7 @@ import Gizmo3D
  *   GlobalGizmo {
  *       view3d: myView3D
  *       targetNode: myCube
- *       mode: "translate"  // or "rotate" or "both"
+ *       mode: GizmoEnums.Mode.Translate  // or Rotate, Scale, Both, All
  *   }
  *
  * The GlobalGizmo:
@@ -46,15 +46,15 @@ Item {
     // Scale-specific snap property
     property real scaleSnapIncrement: 0.1
 
-    // Mode control: "translate", "rotate", "scale", or "all"
-    property string mode: "translate"
+    // Mode control: GizmoEnums.Mode.Translate, Rotate, Scale, Both, or All
+    property int mode: GizmoEnums.Mode.Translate
 
     // Forward activeAxis from active gizmo
     readonly property int activeAxis: {
-        if (mode === "translate") return translationGizmo.activeAxis
-        if (mode === "rotate") return rotationGizmo.activeAxis
-        if (mode === "scale") return scaleGizmo.activeAxis
-        // For "all" mode, return first non-None activeAxis
+        if (mode === GizmoEnums.Mode.Translate) return translationGizmo.activeAxis
+        if (mode === GizmoEnums.Mode.Rotate) return rotationGizmo.activeAxis
+        if (mode === GizmoEnums.Mode.Scale) return scaleGizmo.activeAxis
+        // For Both/All modes, return first non-None activeAxis
         if (scaleGizmo.activeAxis !== GizmoEnums.Axis.None) return scaleGizmo.activeAxis
         if (translationGizmo.activeAxis !== GizmoEnums.Axis.None) return translationGizmo.activeAxis
         if (rotationGizmo.activeAxis !== GizmoEnums.Axis.None) return rotationGizmo.activeAxis
@@ -85,7 +85,7 @@ Item {
     signal scaleEnded(int axis)
 
     // Computed property: are we in composite mode with multiple gizmos sharing arrow space?
-    readonly property bool isCompositeMode: mode === "all"
+    readonly property bool isCompositeMode: mode === GizmoEnums.Mode.All
 
     visible: targetNode !== null && view3d !== null
 
@@ -117,8 +117,8 @@ Item {
     ScaleGizmo {
         id: scaleGizmo
         anchors.fill: parent
-        visible: root.mode === "scale" || root.mode === "all"
-        z: root.mode === "all" ? 0 : 0
+        visible: root.mode === GizmoEnums.Mode.Scale || root.mode === GizmoEnums.Mode.All
+        z: root.mode === GizmoEnums.Mode.All ? 0 : 0
 
         // Parent manages geometry updates via coordinating FrameAnimation
         managedByParent: true
@@ -143,8 +143,8 @@ Item {
     TranslationGizmo {
         id: translationGizmo
         anchors.fill: parent
-        visible: root.mode === "translate" || root.mode === "both" || root.mode === "all"
-        z: root.mode === "both" || root.mode === "all" ? 0 : 0
+        visible: root.mode === GizmoEnums.Mode.Translate || root.mode === GizmoEnums.Mode.Both || root.mode === GizmoEnums.Mode.All
+        z: root.mode === GizmoEnums.Mode.Both || root.mode === GizmoEnums.Mode.All ? 0 : 0
 
         // Parent manages geometry updates via coordinating FrameAnimation
         managedByParent: true
@@ -169,8 +169,8 @@ Item {
     RotationGizmo {
         id: rotationGizmo
         anchors.fill: parent
-        visible: root.mode === "rotate" || root.mode === "both" || root.mode === "all"
-        z: root.mode === "both" || root.mode === "all" ? 1 : 0  // Rotation on top when multiple visible
+        visible: root.mode === GizmoEnums.Mode.Rotate || root.mode === GizmoEnums.Mode.Both || root.mode === GizmoEnums.Mode.All
+        z: root.mode === GizmoEnums.Mode.Both || root.mode === GizmoEnums.Mode.All ? 1 : 0  // Rotation on top when multiple visible
 
         // Parent manages geometry updates via coordinating FrameAnimation
         managedByParent: true
