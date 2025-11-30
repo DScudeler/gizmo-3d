@@ -198,7 +198,8 @@ View3D {
     }
 }
 
-property bool gizmoActive: gizmo.activeAxis !== 0 || rotationGizmo.activeAxis !== 0
+property bool gizmoActive: gizmo.activeAxis !== GizmoEnums.Axis.None ||
+                           rotationGizmo.activeAxis !== GizmoEnums.Axis.None
 
 TranslationGizmo {
     id: gizmo
@@ -249,11 +250,11 @@ Item {
             dragStartPos = cube.position
         }
 
-        function onAxisTranslationDelta(axis, delta, snapActive) {
+        function onAxisTranslationDelta(axis, transformMode, delta, snapActive) {
             var newPos = dragStartPos
-            if (axis === 1) newPos.x += delta
-            else if (axis === 2) newPos.y += delta
-            else if (axis === 3) newPos.z += delta
+            if (axis === GizmoEnums.Axis.X) newPos.x += delta
+            else if (axis === GizmoEnums.Axis.Y) newPos.y += delta
+            else if (axis === GizmoEnums.Axis.Z) newPos.z += delta
 
             // Clamp to bounds
             newPos.x = Math.max(-100, Math.min(100, newPos.x))

@@ -45,7 +45,7 @@ GlobalGizmo {
     view3d: view3d
     targetNode: targetCube
     mode: "translate"     // or "rotate", "scale", "both", "all"
-    transformMode: "world" // or "local"
+    transformMode: GizmoEnums.TransformMode.World  // or GizmoEnums.TransformMode.Local
     snapEnabled: true
 }
 
@@ -96,19 +96,19 @@ GlobalGizmo {
 
 **Composite Mode ("all")**: In this mode, scale handles occupy the inner portion of arrows (0-50%) and translation arrows occupy the outer portion (50-100%), creating a combined visual appearance.
 
-#### `transformMode : string`
+#### `transformMode : int`
 
 Coordinate system for manipulation.
 
-**Type**: string
-**Default**: `"world"`
+**Type**: int
+**Default**: `GizmoEnums.TransformMode.World`
 **Valid Values**:
-- `"world"`: Axes aligned with global coordinate system
-- `"local"`: Axes aligned with object's rotation
+- `GizmoEnums.TransformMode.World` (0): Axes aligned with global coordinate system
+- `GizmoEnums.TransformMode.Local` (1): Axes aligned with object's rotation
 
 ```qml
 GlobalGizmo {
-    transformMode: "local"  // Gizmo follows object rotation
+    transformMode: GizmoEnums.TransformMode.Local  // Gizmo follows object rotation
 }
 ```
 
@@ -248,7 +248,9 @@ Item {
         else if (event.key === Qt.Key_A) gizmo.mode = "all"
         else if (event.key === Qt.Key_G) {
             // Toggle world/local
-            gizmo.transformMode = gizmo.transformMode === "world" ? "local" : "world"
+            gizmo.transformMode = gizmo.transformMode === GizmoEnums.TransformMode.World
+                ? GizmoEnums.TransformMode.Local
+                : GizmoEnums.TransformMode.World
         }
     }
 }
@@ -281,8 +283,10 @@ Row {
 
     // World/Local toggle
     Button {
-        text: gizmo.transformMode === "world" ? "World" : "Local"
-        onClicked: gizmo.transformMode = gizmo.transformMode === "world" ? "local" : "world"
+        text: gizmo.transformMode === GizmoEnums.TransformMode.World ? "World" : "Local"
+        onClicked: gizmo.transformMode = gizmo.transformMode === GizmoEnums.TransformMode.World
+            ? GizmoEnums.TransformMode.Local
+            : GizmoEnums.TransformMode.World
     }
 }
 ```
@@ -302,9 +306,9 @@ GlobalGizmo {
     }
     onAxisTranslationDelta: (axis, mode, delta, snap) => {
         var pos = dragStartPos
-        if (axis === 1) pos.x += delta
-        else if (axis === 2) pos.y += delta
-        else if (axis === 3) pos.z += delta
+        if (axis === GizmoEnums.Axis.X) pos.x += delta
+        else if (axis === GizmoEnums.Axis.Y) pos.y += delta
+        else if (axis === GizmoEnums.Axis.Z) pos.z += delta
         targetCube.position = pos
     }
 
@@ -313,8 +317,8 @@ GlobalGizmo {
         dragStartRot = targetCube.rotation
     }
     onRotationDelta: (axis, mode, angle, snap) => {
-        var axisVec = axis === 1 ? Qt.vector3d(1, 0, 0)
-                    : axis === 2 ? Qt.vector3d(0, 1, 0)
+        var axisVec = axis === GizmoEnums.Axis.X ? Qt.vector3d(1, 0, 0)
+                    : axis === GizmoEnums.Axis.Y ? Qt.vector3d(0, 1, 0)
                     : Qt.vector3d(0, 0, 1)
         var deltaQuat = GizmoMath.quaternionFromAxisAngle(axisVec, angle)
         targetCube.rotation = deltaQuat.times(dragStartRot)
@@ -325,7 +329,7 @@ GlobalGizmo {
         dragStartScale = targetCube.scale
     }
     onScaleDelta: (axis, mode, factor, snap) => {
-        if (axis === 4) {
+        if (axis === GizmoEnums.Axis.Uniform) {
             // Uniform
             targetCube.scale = Qt.vector3d(
                 dragStartScale.x * factor,
@@ -334,9 +338,9 @@ GlobalGizmo {
             )
         } else {
             var scale = dragStartScale
-            if (axis === 1) scale.x *= factor
-            else if (axis === 2) scale.y *= factor
-            else if (axis === 3) scale.z *= factor
+            if (axis === GizmoEnums.Axis.X) scale.x *= factor
+            else if (axis === GizmoEnums.Axis.Y) scale.y *= factor
+            else if (axis === GizmoEnums.Axis.Z) scale.z *= factor
             targetCube.scale = scale
         }
     }

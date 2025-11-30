@@ -176,17 +176,17 @@ RotationGizmo {
 
 #### `activeAxis : int`
 
-Currently dragged rotation axis (0=none, 1=X, 2=Y, 3=Z).
+Currently dragged rotation axis (uses `GizmoEnums.Axis` values).
 
 **Type**: int
 
 **Read-Only**: Yes
 
 **Values**:
-- `0`: No axis active
-- `1`: X axis (red circle, YZ plane rotation) active
-- `2`: Y axis (green circle, ZX plane rotation) active
-- `3`: Z axis (blue circle, XY plane rotation) active
+- `GizmoEnums.Axis.None` (0): No axis active
+- `GizmoEnums.Axis.X` (1): X axis (red circle, YZ plane rotation) active
+- `GizmoEnums.Axis.Y` (2): Y axis (green circle, ZX plane rotation) active
+- `GizmoEnums.Axis.Z` (3): Z axis (blue circle, XY plane rotation) active
 
 ```qml
 RotationGizmo {
@@ -194,7 +194,7 @@ RotationGizmo {
 }
 
 Text {
-    text: gizmo.activeAxis === 1 ? "Rotating around X axis" : "Not rotating X"
+    text: gizmo.activeAxis === GizmoEnums.Axis.X ? "Rotating around X axis" : "Not rotating X"
 }
 ```
 
@@ -247,7 +247,7 @@ Cached position of the target node.
 Emitted when rotation drag begins.
 
 **Parameters**:
-- `axis` (int): The rotation axis (1=X, 2=Y, 3=Z)
+- `axis` (int): The rotation axis (`GizmoEnums.Axis.X`, `GizmoEnums.Axis.Y`, or `GizmoEnums.Axis.Z`)
 
 **Usage**: Store the initial rotation (quaternion or euler) of the target node.
 
@@ -264,13 +264,13 @@ RotationGizmo {
 
 ---
 
-#### `rotationDelta(int axis, string transformMode, real angleDegrees, bool snapActive)`
+#### `rotationDelta(int axis, int transformMode, real angleDegrees, bool snapActive)`
 
 Emitted continuously during rotation drag with angular displacement.
 
 **Parameters**:
-- `axis` (int): The rotation axis (1=X, 2=Y, 3=Z)
-- `transformMode` (string): Current transform mode (`"world"` or `"local"`)
+- `axis` (int): The rotation axis (`GizmoEnums.Axis.X`, `GizmoEnums.Axis.Y`, or `GizmoEnums.Axis.Z`)
+- `transformMode` (int): Current transform mode (`GizmoEnums.TransformMode.World` or `GizmoEnums.TransformMode.Local`)
 - `angleDegrees` (real): Angular displacement in degrees since drag started
 - `snapActive` (bool): Whether angle snapping was applied to this delta
 
@@ -284,8 +284,8 @@ RotationGizmo {
 
     onRotationDelta: function(axis, transformMode, angleDegrees, snapActive) {
         // Determine rotation axis vector
-        var axisVec = axis === 1 ? Qt.vector3d(1, 0, 0)
-                    : axis === 2 ? Qt.vector3d(0, 1, 0)
+        var axisVec = axis === GizmoEnums.Axis.X ? Qt.vector3d(1, 0, 0)
+                    : axis === GizmoEnums.Axis.Y ? Qt.vector3d(0, 1, 0)
                     : Qt.vector3d(0, 0, 1)
 
         // Create quaternion for rotation delta
@@ -306,7 +306,7 @@ RotationGizmo {
 Emitted when rotation drag ends.
 
 **Parameters**:
-- `axis` (int): The rotation axis that was being dragged (1=X, 2=Y, 3=Z)
+- `axis` (int): The rotation axis that was being dragged (`GizmoEnums.Axis.X`, `GizmoEnums.Axis.Y`, or `GizmoEnums.Axis.Z`)
 
 **Usage**: Finalize the rotation, create undo history, or perform validation.
 
@@ -412,9 +412,9 @@ RotationGizmo {
         dragStartRot = targetCube.rotation
     }
 
-    onRotationDelta: function(axis, angleDegrees, snapActive) {
-        var axisVec = axis === 1 ? Qt.vector3d(1, 0, 0)
-                    : axis === 2 ? Qt.vector3d(0, 1, 0)
+    onRotationDelta: function(axis, transformMode, angleDegrees, snapActive) {
+        var axisVec = axis === GizmoEnums.Axis.X ? Qt.vector3d(1, 0, 0)
+                    : axis === GizmoEnums.Axis.Y ? Qt.vector3d(0, 1, 0)
                     : Qt.vector3d(0, 0, 1)
         var deltaQuat = GizmoMath.quaternionFromAxisAngle(axisVec, angleDegrees)
         targetCube.rotation = deltaQuat.times(dragStartRot)
@@ -430,12 +430,12 @@ Limit rotation to specific angles:
 RotationGizmo {
     property quaternion dragStartRot: Qt.quaternion(1, 0, 0, 0)
 
-    onRotationDelta: function(axis, angleDegrees, snapActive) {
+    onRotationDelta: function(axis, transformMode, angleDegrees, snapActive) {
         // Clamp rotation to ±90 degrees
         var clampedAngle = Math.max(-90, Math.min(90, angleDegrees))
 
-        var axisVec = axis === 1 ? Qt.vector3d(1, 0, 0)
-                    : axis === 2 ? Qt.vector3d(0, 1, 0)
+        var axisVec = axis === GizmoEnums.Axis.X ? Qt.vector3d(1, 0, 0)
+                    : axis === GizmoEnums.Axis.Y ? Qt.vector3d(0, 1, 0)
                     : Qt.vector3d(0, 0, 1)
         var deltaQuat = GizmoMath.quaternionFromAxisAngle(axisVec, clampedAngle)
         targetCube.rotation = deltaQuat.times(dragStartRot)
@@ -457,9 +457,9 @@ RotationGizmo {
         dragStartRotations = selectedObjects.map(obj => obj.rotation)
     }
 
-    onRotationDelta: function(axis, angleDegrees, snapActive) {
-        var axisVec = axis === 1 ? Qt.vector3d(1, 0, 0)
-                    : axis === 2 ? Qt.vector3d(0, 1, 0)
+    onRotationDelta: function(axis, transformMode, angleDegrees, snapActive) {
+        var axisVec = axis === GizmoEnums.Axis.X ? Qt.vector3d(1, 0, 0)
+                    : axis === GizmoEnums.Axis.Y ? Qt.vector3d(0, 1, 0)
                     : Qt.vector3d(0, 0, 1)
         var deltaQuat = GizmoMath.quaternionFromAxisAngle(axisVec, angleDegrees)
 
@@ -485,9 +485,9 @@ RotationGizmo {
         undoStack.push(new RotateCommand(targetCube, dragStartRot, finalRot))
     }
 
-    onRotationDelta: function(axis, angleDegrees, snapActive) {
-        var axisVec = axis === 1 ? Qt.vector3d(1, 0, 0)
-                    : axis === 2 ? Qt.vector3d(0, 1, 0)
+    onRotationDelta: function(axis, transformMode, angleDegrees, snapActive) {
+        var axisVec = axis === GizmoEnums.Axis.X ? Qt.vector3d(1, 0, 0)
+                    : axis === GizmoEnums.Axis.Y ? Qt.vector3d(0, 1, 0)
                     : Qt.vector3d(0, 0, 1)
         var deltaQuat = GizmoMath.quaternionFromAxisAngle(axisVec, angleDegrees)
         targetCube.rotation = deltaQuat.times(dragStartRot)
@@ -507,9 +507,9 @@ RotationGizmo {
         dragStartRot = targetCube.rotation
     }
 
-    onRotationDelta: function(axis, angleDegrees, snapActive) {
-        var axisVec = axis === 1 ? Qt.vector3d(1, 0, 0)
-                    : axis === 2 ? Qt.vector3d(0, 1, 0)
+    onRotationDelta: function(axis, transformMode, angleDegrees, snapActive) {
+        var axisVec = axis === GizmoEnums.Axis.X ? Qt.vector3d(1, 0, 0)
+                    : axis === GizmoEnums.Axis.Y ? Qt.vector3d(0, 1, 0)
                     : Qt.vector3d(0, 0, 1)
         var deltaQuat = GizmoMath.quaternionFromAxisAngle(axisVec, angleDegrees)
         targetCube.rotation = deltaQuat.times(dragStartRot)

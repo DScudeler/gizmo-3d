@@ -198,7 +198,7 @@ TestCase {
 
         onAxisTranslationDelta: function(axis, mode, delta, snap) {
             var pos = dragStartPos
-            if (axis === 1) pos.x += delta
+            if (axis === GizmoEnums.Axis.X) pos.x += delta
             testCube.position = pos
         }
     }

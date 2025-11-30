@@ -82,12 +82,12 @@ All gizmos follow the **Started/Delta/Ended** pattern:
 ```qml
 // Axis translation (constrained to single axis)
 signal axisTranslationStarted(int axis)
-signal axisTranslationDelta(int axis, string transformMode, real delta, bool snapActive)
+signal axisTranslationDelta(int axis, int transformMode, real delta, bool snapActive)
 signal axisTranslationEnded(int axis)
 
 // Planar translation (constrained to plane)
 signal planeTranslationStarted(int plane)
-signal planeTranslationDelta(int plane, string transformMode, vector3d delta, bool snapActive)
+signal planeTranslationDelta(int plane, int transformMode, vector3d delta, bool snapActive)
 signal planeTranslationEnded(int plane)
 ```
 
@@ -95,7 +95,7 @@ signal planeTranslationEnded(int plane)
 
 ```qml
 signal rotationStarted(int axis)
-signal rotationDelta(int axis, string transformMode, real angleDegrees, bool snapActive)
+signal rotationDelta(int axis, int transformMode, real angleDegrees, bool snapActive)
 signal rotationEnded(int axis)
 ```
 
@@ -103,7 +103,7 @@ signal rotationEnded(int axis)
 
 ```qml
 signal scaleStarted(int axis)
-signal scaleDelta(int axis, string transformMode, real scaleFactor, bool snapActive)
+signal scaleDelta(int axis, int transformMode, real scaleFactor, bool snapActive)
 signal scaleEnded(int axis)
 ```
 
@@ -140,9 +140,9 @@ TranslationGizmo {
     onAxisTranslationDelta: function(axis, mode, delta, snap) {
         // Apply delta to start position (not current position)
         var newPos = dragStartPos
-        if (axis === 1) newPos.x += delta
-        else if (axis === 2) newPos.y += delta
-        else if (axis === 3) newPos.z += delta
+        if (axis === GizmoEnums.Axis.X) newPos.x += delta
+        else if (axis === GizmoEnums.Axis.Y) newPos.y += delta
+        else if (axis === GizmoEnums.Axis.Z) newPos.z += delta
 
         targetNode.position = newPos
     }
@@ -151,35 +151,37 @@ TranslationGizmo {
 
 ## Axis/Plane Identifiers
 
-### Axis Values
+All axis and plane values use `GizmoEnums` for type safety and clarity.
 
-| Value | Axis | Color |
-|-------|------|-------|
-| 0 | None | - |
-| 1 | X | Red |
-| 2 | Y | Green |
-| 3 | Z | Blue |
-| 4 | Uniform (ScaleGizmo only) | Yellow |
+### Axis Values (GizmoEnums.Axis)
 
-### Plane Values
+| Enum | Value | Description | Color |
+|------|-------|-------------|-------|
+| `GizmoEnums.Axis.None` | 0 | No axis active | - |
+| `GizmoEnums.Axis.X` | 1 | X axis | Red |
+| `GizmoEnums.Axis.Y` | 2 | Y axis | Green |
+| `GizmoEnums.Axis.Z` | 3 | Z axis | Blue |
+| `GizmoEnums.Axis.Uniform` | 4 | Uniform (ScaleGizmo only) | Yellow |
 
-| Value | Plane | Color |
-|-------|-------|-------|
-| 0 | None | - |
-| 1 | XY | Yellow |
-| 2 | XZ | Magenta |
-| 3 | YZ | Cyan |
+### Plane Values (GizmoEnums.Plane)
+
+| Enum | Value | Description | Color |
+|------|-------|-------------|-------|
+| `GizmoEnums.Plane.None` | 0 | No plane active | - |
+| `GizmoEnums.Plane.XY` | 1 | XY plane | Yellow |
+| `GizmoEnums.Plane.XZ` | 2 | XZ plane | Magenta |
+| `GizmoEnums.Plane.YZ` | 3 | YZ plane | Cyan |
 
 ## Transform Mode Parameter
 
-Each delta signal includes `transformMode` indicating the coordinate system:
+Each delta signal includes `transformMode` (int) indicating the coordinate system:
 
 ```qml
 onAxisTranslationDelta: function(axis, transformMode, delta, snap) {
-    if (transformMode === "world") {
+    if (transformMode === GizmoEnums.TransformMode.World) {
         // Delta is in world coordinates
         targetNode.position.x += delta  // Direct application
-    } else if (transformMode === "local") {
+    } else if (transformMode === GizmoEnums.TransformMode.Local) {
         // Delta is along object's local axis
         var localAxis = getLocalAxis(targetNode.rotation, axis)
         targetNode.position = targetNode.position.plus(localAxis.times(delta))
@@ -203,9 +205,9 @@ TranslationGizmo {
 
     onAxisTranslationDelta: (axis, mode, delta, snap) => {
         var pos = dragStartPos
-        if (axis === 1) pos.x += delta
-        else if (axis === 2) pos.y += delta
-        else if (axis === 3) pos.z += delta
+        if (axis === GizmoEnums.Axis.X) pos.x += delta
+        else if (axis === GizmoEnums.Axis.Y) pos.y += delta
+        else if (axis === GizmoEnums.Axis.Z) pos.z += delta
         myCube.position = pos
     }
 }
@@ -222,9 +224,9 @@ TranslationGizmo {
 
     onAxisTranslationDelta: (axis, mode, delta, snap) => {
         var pos = dragStartPos
-        if (axis === 1) pos.x += delta
-        else if (axis === 2) pos.y += delta
-        else if (axis === 3) pos.z += delta
+        if (axis === GizmoEnums.Axis.X) pos.x += delta
+        else if (axis === GizmoEnums.Axis.Y) pos.y += delta
+        else if (axis === GizmoEnums.Axis.Z) pos.z += delta
 
         // Constrain to bounds
         pos.x = Math.max(bounds.x, Math.min(bounds.x + bounds.width, pos.x))
@@ -249,9 +251,9 @@ TranslationGizmo {
     onAxisTranslationDelta: (axis, mode, delta, snap) => {
         for (var i = 0; i < selectedObjects.length; i++) {
             var pos = dragStartPositions[i]
-            if (axis === 1) pos.x += delta
-            else if (axis === 2) pos.y += delta
-            else if (axis === 3) pos.z += delta
+            if (axis === GizmoEnums.Axis.X) pos.x += delta
+            else if (axis === GizmoEnums.Axis.Y) pos.y += delta
+            else if (axis === GizmoEnums.Axis.Z) pos.z += delta
             selectedObjects[i].position = pos
         }
     }

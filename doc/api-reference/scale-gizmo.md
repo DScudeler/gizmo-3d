@@ -29,7 +29,7 @@ import Gizmo3D 1.0
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `transformMode` | string | "world" | Coordinate mode: `"world"` for global axes, `"local"` for object-relative axes. |
+| `transformMode` | int | `GizmoEnums.TransformMode.World` | Coordinate mode: `GizmoEnums.TransformMode.World` for global axes, `GizmoEnums.TransformMode.Local` for object-relative axes. |
 
 ### Arrow Ratio Properties
 
@@ -52,7 +52,7 @@ These properties control which portion of the arrow is drawn, useful for composi
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `activeAxis` | int | Currently active axis: 0=none, 1=X, 2=Y, 3=Z, 4=uniform (center handle). |
+| `activeAxis` | int | Currently active axis: `GizmoEnums.Axis.None` (0), `GizmoEnums.Axis.X` (1), `GizmoEnums.Axis.Y` (2), `GizmoEnums.Axis.Z` (3), `GizmoEnums.Axis.Uniform` (4, center handle). |
 | `isActive` | bool | True when any axis is being dragged. |
 | `targetPosition` | vector3d | Computed position of the target node (updates automatically). |
 | `currentAxes` | var | Object containing current X, Y, Z axis vectors based on transformMode. |
@@ -77,19 +77,19 @@ signal scaleStarted(int axis)
 Emitted when the user begins dragging a scale handle.
 
 **Parameters:**
-- `axis`: The axis being scaled (1=X, 2=Y, 3=Z, 4=uniform)
+- `axis`: The axis being scaled (`GizmoEnums.Axis.X`, `GizmoEnums.Axis.Y`, `GizmoEnums.Axis.Z`, or `GizmoEnums.Axis.Uniform`)
 
 ### scaleDelta
 
 ```qml
-signal scaleDelta(int axis, string transformMode, real scaleFactor, bool snapActive)
+signal scaleDelta(int axis, int transformMode, real scaleFactor, bool snapActive)
 ```
 
 Emitted continuously during drag with the current scale factor relative to drag start.
 
 **Parameters:**
-- `axis`: The axis being scaled (1=X, 2=Y, 3=Z, 4=uniform)
-- `transformMode`: Current transform mode (`"world"` or `"local"`)
+- `axis`: The axis being scaled (`GizmoEnums.Axis.X`, `GizmoEnums.Axis.Y`, `GizmoEnums.Axis.Z`, or `GizmoEnums.Axis.Uniform`)
+- `transformMode`: Current transform mode (`GizmoEnums.TransformMode.World` or `GizmoEnums.TransformMode.Local`)
 - `scaleFactor`: Scale multiplier relative to drag start (1.0 = no change, 2.0 = double, 0.5 = half)
 - `snapActive`: Whether snapping was applied to this delta
 
@@ -102,7 +102,7 @@ signal scaleEnded(int axis)
 Emitted when the user releases the scale handle.
 
 **Parameters:**
-- `axis`: The axis that was being scaled (1=X, 2=Y, 3=Z, 4=uniform)
+- `axis`: The axis that was being scaled (`GizmoEnums.Axis.X`, `GizmoEnums.Axis.Y`, `GizmoEnums.Axis.Z`, or `GizmoEnums.Axis.Uniform`)
 
 ## Usage Examples
 
@@ -121,28 +121,28 @@ ScaleGizmo {
     }
 
     onScaleDelta: function(axis, transformMode, scaleFactor, snapActive) {
-        if (axis === 4) {
+        if (axis === GizmoEnums.Axis.Uniform) {
             // Uniform scaling - apply to all axes
             myCube.scale = Qt.vector3d(
                 dragStartScale.x * scaleFactor,
                 dragStartScale.y * scaleFactor,
                 dragStartScale.z * scaleFactor
             )
-        } else if (axis === 1) {
+        } else if (axis === GizmoEnums.Axis.X) {
             // X-axis scaling
             myCube.scale = Qt.vector3d(
                 dragStartScale.x * scaleFactor,
                 dragStartScale.y,
                 dragStartScale.z
             )
-        } else if (axis === 2) {
+        } else if (axis === GizmoEnums.Axis.Y) {
             // Y-axis scaling
             myCube.scale = Qt.vector3d(
                 dragStartScale.x,
                 dragStartScale.y * scaleFactor,
                 dragStartScale.z
             )
-        } else if (axis === 3) {
+        } else if (axis === GizmoEnums.Axis.Z) {
             // Z-axis scaling
             myCube.scale = Qt.vector3d(
                 dragStartScale.x,
@@ -181,7 +181,7 @@ ScaleGizmo {
 ScaleGizmo {
     view3d: myView3D
     targetNode: myCube
-    transformMode: "local"  // Scale along object's rotated axes
+    transformMode: GizmoEnums.TransformMode.Local  // Scale along object's rotated axes
 
     property vector3d dragStartScale
 
@@ -211,7 +211,7 @@ ScaleGizmo {
         var clampedFactor = Math.max(minScale / dragStartScale.x,
                                      Math.min(maxScale / dragStartScale.x, factor))
 
-        if (axis === 4) {
+        if (axis === GizmoEnums.Axis.Uniform) {
             myCube.scale = Qt.vector3d(
                 dragStartScale.x * clampedFactor,
                 dragStartScale.y * clampedFactor,

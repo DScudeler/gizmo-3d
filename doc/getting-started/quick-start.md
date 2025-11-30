@@ -75,12 +75,12 @@ QtObject {
         dragStartPos = targetCube.position
     }
 
-    function onAxisTranslationDelta(axis, delta, snapActive) {
-        if (axis === 1) {
+    function onAxisTranslationDelta(axis, transformMode, delta, snapActive) {
+        if (axis === GizmoEnums.Axis.X) {
             targetCube.position = Qt.vector3d(dragStartPos.x + delta, dragStartPos.y, dragStartPos.z)
-        } else if (axis === 2) {
+        } else if (axis === GizmoEnums.Axis.Y) {
             targetCube.position = Qt.vector3d(dragStartPos.x, dragStartPos.y + delta, dragStartPos.z)
-        } else if (axis === 3) {
+        } else if (axis === GizmoEnums.Axis.Z) {
             targetCube.position = Qt.vector3d(dragStartPos.x, dragStartPos.y, dragStartPos.z + delta)
         }
     }
