@@ -1,5 +1,4 @@
-# Create a static library for the backing target
-add_library(gizmo3d STATIC)
+qt_add_library(gizmo3d SHARED)
 
 # Mark singletons for Qt6
 set_source_files_properties(
@@ -39,10 +38,46 @@ qt_add_qml_module(gizmo3d
         drawing/PlaneRenderer.qml
         drawing/SquareHandleRenderer.qml
     OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/src/Gizmo3D
-    NO_PLUGIN
+    PLUGIN_TARGET gizmo3d
 )
 
 target_link_libraries(gizmo3d PRIVATE
     Qt6::Quick
     Qt6::Quick3D
+)
+
+# Install targets
+include(GNUInstallDirs)
+
+install(TARGETS gizmo3d
+    EXPORT gizmo3dTargets
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
+
+include(CMakePackageConfigHelpers)
+
+install(EXPORT gizmo3dTargets
+    FILE gizmo3dTargets.cmake
+    NAMESPACE Gizmo3D::
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/gizmo3d
+)
+
+configure_package_config_file(
+    ${CMAKE_SOURCE_DIR}/cmake/gizmo3dConfig.cmake.in
+    ${CMAKE_BINARY_DIR}/gizmo3dConfig.cmake
+    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/gizmo3d
+)
+
+write_basic_package_version_file(
+    ${CMAKE_BINARY_DIR}/gizmo3dConfigVersion.cmake
+    VERSION ${PROJECT_VERSION}
+    COMPATIBILITY SameMajorVersion
+)
+
+install(FILES
+    ${CMAKE_BINARY_DIR}/gizmo3dConfig.cmake
+    ${CMAKE_BINARY_DIR}/gizmo3dConfigVersion.cmake
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/gizmo3d
 )
