@@ -12,6 +12,7 @@ set_source_files_properties(
     geometry/RotationGeometryCalculator.qml
     geometry/ScaleGeometryCalculator.qml
     geometry/HitTester.qml
+    geometry/GeometryTemplates.qml
     PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 
 qt_add_qml_module(gizmo3d
@@ -31,6 +32,7 @@ qt_add_qml_module(gizmo3d
         geometry/RotationGeometryCalculator.qml
         geometry/ScaleGeometryCalculator.qml
         geometry/HitTester.qml
+        geometry/GeometryTemplates.qml
         drawing/ArrowRenderer.qml
         drawing/ScaleArrowRenderer.qml
         drawing/CircleRenderer.qml

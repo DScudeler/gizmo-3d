@@ -66,6 +66,74 @@ Item {
     // Geometry property - updated by FrameAnimation or parent coordinator
     property var geometry: null
 
+    // Dirty-checking state for performance optimization (standalone mode only)
+    property vector3d _lastCameraPos: Qt.vector3d(0, 0, 0)
+    property quaternion _lastCameraRot: Qt.quaternion(1, 0, 0, 0)
+    property vector3d _lastTargetPos: Qt.vector3d(0, 0, 0)
+    property quaternion _lastTargetRot: Qt.quaternion(1, 0, 0, 0)
+    property int _lastTransformMode: -1
+
+    // Check if camera or target transforms have changed since last frame
+    function _transformsChanged() {
+        if (!view3d || !view3d.camera || !targetNode) return true
+
+        var cam = view3d.camera
+        var epsilon = 0.0001
+
+        // Check camera position
+        var camPos = cam.scenePosition
+        if (Math.abs(camPos.x - _lastCameraPos.x) > epsilon ||
+            Math.abs(camPos.y - _lastCameraPos.y) > epsilon ||
+            Math.abs(camPos.z - _lastCameraPos.z) > epsilon) {
+            return true
+        }
+
+        // Check camera rotation
+        var camRot = cam.sceneRotation
+        if (Math.abs(camRot.x - _lastCameraRot.x) > epsilon ||
+            Math.abs(camRot.y - _lastCameraRot.y) > epsilon ||
+            Math.abs(camRot.z - _lastCameraRot.z) > epsilon ||
+            Math.abs(camRot.scalar - _lastCameraRot.scalar) > epsilon) {
+            return true
+        }
+
+        // Check target position
+        var targetPos = targetNode.scenePosition
+        if (Math.abs(targetPos.x - _lastTargetPos.x) > epsilon ||
+            Math.abs(targetPos.y - _lastTargetPos.y) > epsilon ||
+            Math.abs(targetPos.z - _lastTargetPos.z) > epsilon) {
+            return true
+        }
+
+        // Check target rotation (matters for local transform mode)
+        var targetRot = targetNode.sceneRotation
+        if (Math.abs(targetRot.x - _lastTargetRot.x) > epsilon ||
+            Math.abs(targetRot.y - _lastTargetRot.y) > epsilon ||
+            Math.abs(targetRot.z - _lastTargetRot.z) > epsilon ||
+            Math.abs(targetRot.scalar - _lastTargetRot.scalar) > epsilon) {
+            return true
+        }
+
+        // Check transform mode change
+        if (_lastTransformMode !== transformMode) {
+            return true
+        }
+
+        return false
+    }
+
+    // Update cached state after geometry update
+    function _updateCachedState() {
+        if (!view3d || !view3d.camera || !targetNode) return
+
+        var cam = view3d.camera
+        _lastCameraPos = cam.scenePosition
+        _lastCameraRot = cam.sceneRotation
+        _lastTargetPos = targetNode.scenePosition
+        _lastTargetRot = targetNode.sceneRotation
+        _lastTransformMode = transformMode
+    }
+
     visible: targetNode !== null && view3d !== null
 
     // Internal FrameAnimation for standalone operation (disabled when managed by parent)
@@ -74,11 +142,13 @@ Item {
         running: !root.managedByParent && root.visible && root.view3d && root.targetNode
 
         onTriggered: {
-            // Update geometry every frame - no dirty check to avoid sync issues
-            // between QML property updates and View3D internal state
+            // Skip geometry update if nothing has changed (performance optimization)
+            if (!root._transformsChanged()) return
+
             var projector = View3DProjectionAdapter.createProjector(root.view3d)
             if (projector) {
                 root.updateGeometry(projector)
+                root._updateCachedState()
             }
         }
     }
