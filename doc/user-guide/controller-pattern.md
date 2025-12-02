@@ -124,11 +124,11 @@ Item {
             controller.dragStartPos = controller.targetNode.position
         }
 
-        function onAxisTranslationDelta(axis, delta, snapActive) {
+        function onAxisTranslationDelta(axis, transformMode, delta, snapActive) {
             var newPos = controller.dragStartPos
-            if (axis === 1) newPos.x += delta
-            else if (axis === 2) newPos.y += delta
-            else if (axis === 3) newPos.z += delta
+            if (axis === GizmoEnums.Axis.X) newPos.x += delta
+            else if (axis === GizmoEnums.Axis.Y) newPos.y += delta
+            else if (axis === GizmoEnums.Axis.Z) newPos.z += delta
 
             controller.targetNode.position = newPos
         }
@@ -141,7 +141,7 @@ Item {
             controller.dragStartPos = controller.targetNode.position
         }
 
-        function onPlaneTranslationDelta(plane, delta, snapActive) {
+        function onPlaneTranslationDelta(plane, transformMode, delta, snapActive) {
             controller.targetNode.position = Qt.vector3d(
                 controller.dragStartPos.x + delta.x,
                 controller.dragStartPos.y + delta.y,
@@ -169,9 +169,9 @@ Item {
             controller.dragStartRot = controller.targetNode.rotation
         }
 
-        function onRotationDelta(axis, angleDegrees, snapActive) {
-            var axisVec = axis === 1 ? Qt.vector3d(1, 0, 0)
-                        : axis === 2 ? Qt.vector3d(0, 1, 0)
+        function onRotationDelta(axis, transformMode, angleDegrees, snapActive) {
+            var axisVec = axis === GizmoEnums.Axis.X ? Qt.vector3d(1, 0, 0)
+                        : axis === GizmoEnums.Axis.Y ? Qt.vector3d(0, 1, 0)
                         : Qt.vector3d(0, 0, 1)
 
             var deltaQuat = GizmoMath.quaternionFromAxisAngle(axisVec, angleDegrees)
@@ -202,11 +202,11 @@ Item {
     Connections {
         target: gizmo
 
-        function onAxisTranslationDelta(axis, delta, snapActive) {
+        function onAxisTranslationDelta(axis, transformMode, delta, snapActive) {
             var newPos = dragStartPos
-            if (axis === 1) newPos.x += delta
-            else if (axis === 2) newPos.y += delta
-            else if (axis === 3) newPos.z += delta
+            if (axis === GizmoEnums.Axis.X) newPos.x += delta
+            else if (axis === GizmoEnums.Axis.Y) newPos.y += delta
+            else if (axis === GizmoEnums.Axis.Z) newPos.z += delta
 
             // Clamp to bounds
             newPos.x = Math.max(minX, Math.min(maxX, newPos.x))
@@ -235,14 +235,14 @@ Item {
             dragStartPositions = selectedObjects.map(obj => obj.position)
         }
 
-        function onAxisTranslationDelta(axis, delta, snapActive) {
+        function onAxisTranslationDelta(axis, transformMode, delta, snapActive) {
             for (var i = 0; i < selectedObjects.length; i++) {
                 var startPos = dragStartPositions[i]
                 var newPos = startPos
 
-                if (axis === 1) newPos.x += delta
-                else if (axis === 2) newPos.y += delta
-                else if (axis === 3) newPos.z += delta
+                if (axis === GizmoEnums.Axis.X) newPos.x += delta
+                else if (axis === GizmoEnums.Axis.Y) newPos.y += delta
+                else if (axis === GizmoEnums.Axis.Z) newPos.z += delta
 
                 selectedObjects[i].position = newPos
             }
@@ -269,11 +269,11 @@ Item {
             dragStartPos = targetNode.position
         }
 
-        function onAxisTranslationDelta(axis, delta, snapActive) {
+        function onAxisTranslationDelta(axis, transformMode, delta, snapActive) {
             var newPos = dragStartPos
-            if (axis === 1) newPos.x += delta
-            else if (axis === 2) newPos.y += delta
-            else if (axis === 3) newPos.z += delta
+            if (axis === GizmoEnums.Axis.X) newPos.x += delta
+            else if (axis === GizmoEnums.Axis.Y) newPos.y += delta
+            else if (axis === GizmoEnums.Axis.Z) newPos.z += delta
 
             targetNode.position = newPos
         }

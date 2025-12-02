@@ -15,7 +15,7 @@ Item {
     property Node targetNode: null
     property real gizmoSize: 100.0
     property real maxScreenSize: 150.0  // Maximum screen-space extent in pixels
-    property vector3d targetPosition: targetNode ? targetNode.position : Qt.vector3d(0, 0, 0)
+    property vector3d targetPosition: targetNode ? targetNode.scenePosition : Qt.vector3d(0, 0, 0)
     property real lineWidth: 4
 
     // Transform mode: GizmoEnums.TransformMode.World or GizmoEnums.TransformMode.Local
@@ -28,7 +28,7 @@ Item {
     // Computed local/world axes based on transform mode
     readonly property var currentAxes: {
         if (transformMode === GizmoEnums.TransformMode.Local && targetNode) {
-            return GizmoMath.getLocalAxes(targetNode.rotation)
+            return GizmoMath.getLocalAxes(targetNode.sceneRotation)
         } else {
             return {
                 x: Qt.vector3d(1, 0, 0),
@@ -36,16 +36,6 @@ Item {
                 z: Qt.vector3d(0, 0, 1)
             }
         }
-    }
-
-    // Handle targetNode changes to trigger repaint
-    onTargetNodeChanged: {
-        repaintGizmo()
-    }
-
-    // Handle transform mode changes to trigger repaint (world/local switch)
-    onTransformModeChanged: {
-        repaintGizmo()
     }
 
     // Active axis
@@ -65,16 +55,118 @@ Item {
 
     anchors.fill: parent
 
-    // Helper function to calculate arrow geometry (uses geometry calculator)
-    function calculateGizmoGeometry() {
-        if (!view3d || !view3d.camera || !targetNode) return null
+    // Performance optimization: drag state and caching
+    property bool isDragging: false
+    property var cachedProjector: null
+    property var lastHitTestGeometry: null
 
-        var projector = View3DProjectionAdapter.createProjector(view3d)
-        if (!projector) return null
+    // External control flag - when true, parent manages geometry updates via FrameAnimation
+    property bool managedByParent: false
 
-        return ScaleGeometryCalculator.calculateHandleGeometry({
+    // Geometry property - updated by FrameAnimation or parent coordinator
+    property var geometry: null
+
+    // Dirty-checking state for performance optimization (standalone mode only)
+    property vector3d _lastCameraPos: Qt.vector3d(0, 0, 0)
+    property quaternion _lastCameraRot: Qt.quaternion(1, 0, 0, 0)
+    property vector3d _lastTargetPos: Qt.vector3d(0, 0, 0)
+    property quaternion _lastTargetRot: Qt.quaternion(1, 0, 0, 0)
+    property int _lastTransformMode: -1
+
+    // Check if camera or target transforms have changed since last frame
+    function _transformsChanged() {
+        if (!view3d || !view3d.camera || !targetNode) return true
+
+        var cam = view3d.camera
+        var epsilon = 0.0001
+
+        // Check camera position
+        var camPos = cam.scenePosition
+        if (Math.abs(camPos.x - _lastCameraPos.x) > epsilon ||
+            Math.abs(camPos.y - _lastCameraPos.y) > epsilon ||
+            Math.abs(camPos.z - _lastCameraPos.z) > epsilon) {
+            return true
+        }
+
+        // Check camera rotation
+        var camRot = cam.sceneRotation
+        if (Math.abs(camRot.x - _lastCameraRot.x) > epsilon ||
+            Math.abs(camRot.y - _lastCameraRot.y) > epsilon ||
+            Math.abs(camRot.z - _lastCameraRot.z) > epsilon ||
+            Math.abs(camRot.scalar - _lastCameraRot.scalar) > epsilon) {
+            return true
+        }
+
+        // Check target position
+        var targetPos = targetNode.scenePosition
+        if (Math.abs(targetPos.x - _lastTargetPos.x) > epsilon ||
+            Math.abs(targetPos.y - _lastTargetPos.y) > epsilon ||
+            Math.abs(targetPos.z - _lastTargetPos.z) > epsilon) {
+            return true
+        }
+
+        // Check target rotation (matters for local transform mode)
+        var targetRot = targetNode.sceneRotation
+        if (Math.abs(targetRot.x - _lastTargetRot.x) > epsilon ||
+            Math.abs(targetRot.y - _lastTargetRot.y) > epsilon ||
+            Math.abs(targetRot.z - _lastTargetRot.z) > epsilon ||
+            Math.abs(targetRot.scalar - _lastTargetRot.scalar) > epsilon) {
+            return true
+        }
+
+        // Check transform mode change
+        if (_lastTransformMode !== transformMode) {
+            return true
+        }
+
+        return false
+    }
+
+    // Update cached state after geometry update
+    function _updateCachedState() {
+        if (!view3d || !view3d.camera || !targetNode) return
+
+        var cam = view3d.camera
+        _lastCameraPos = cam.scenePosition
+        _lastCameraRot = cam.sceneRotation
+        _lastTargetPos = targetNode.scenePosition
+        _lastTargetRot = targetNode.sceneRotation
+        _lastTransformMode = transformMode
+    }
+
+    visible: targetNode !== null && view3d !== null
+
+    // Internal FrameAnimation for standalone operation (disabled when managed by parent)
+    FrameAnimation {
+        id: internalAnimation
+        running: !root.managedByParent && root.visible && root.view3d && root.targetNode
+
+        onTriggered: {
+            // Skip geometry update if nothing has changed (performance optimization)
+            if (!root._transformsChanged()) return
+
+            var projector = View3DProjectionAdapter.createProjector(root.view3d)
+            if (projector) {
+                root.updateGeometry(projector)
+                root._updateCachedState()
+            }
+        }
+    }
+
+    /**
+     * Updates geometry using the provided projector.
+     * Called by parent coordinator (GlobalGizmo) or internal FrameAnimation.
+     * @param projector - Shared projector object from View3DProjectionAdapter
+     */
+    function updateGeometry(projector) {
+        if (!view3d || !view3d.camera || !targetNode) {
+            geometry = null
+            return
+        }
+
+        geometry = ScaleGeometryCalculator.calculateHandleGeometry({
             projector: projector,
-            targetPosition: targetPosition,
+            targetPosition: targetNode.scenePosition,
             axes: currentAxes,
             gizmoSize: gizmoSize,
             maxScreenSize: maxScreenSize,
@@ -83,50 +175,74 @@ Item {
         })
     }
 
-    // Drawing primitives
-    ArrowPrimitive {
-        id: arrowPrimitive
-        lineCap: "round"
+    // Helper for hit testing - needs fresh geometry calculation
+    function calculateGizmoGeometry() {
+        if (!view3d || !view3d.camera || !targetNode) return null
+        var projector = View3DProjectionAdapter.createProjector(view3d)
+        if (!projector) return null
+        return ScaleGeometryCalculator.calculateHandleGeometry({
+            projector: projector,
+            targetPosition: targetNode.scenePosition,
+            axes: currentAxes,
+            gizmoSize: gizmoSize,
+            maxScreenSize: maxScreenSize,
+            arrowStartRatio: arrowStartRatio,
+            arrowEndRatio: arrowEndRatio
+        })
     }
 
-    SquareHandlePrimitive {
-        id: squareHandlePrimitive
-        defaultSize: 12
-        lineWidth: 1
-    }
+    // ========================================
+    // Rendering Layer - QtQuick.Shapes based
+    // ========================================
 
-    // Visible canvas for rendering
-    Canvas {
-        id: canvas
+    Item {
+        id: renderLayer
         anchors.fill: parent
-        renderStrategy: Canvas.Threaded
-        renderTarget: Canvas.FramebufferObject
 
-        onPaint: {
-            var geometry = root.calculateGizmoGeometry()
-            if (!geometry) return
+        // Uniform scale handle at center
+        SquareHandleRenderer {
+            anchors.fill: parent
+            center: root.geometry ? root.geometry.center : Qt.point(0, 0)
+            color: root.uniformColor
+            size: 8
+        }
 
-            var ctx = getContext("2d", { alpha: true })
-            ctx.clearRect(0, 0, width, height)
+        // X axis (red) with square end
+        ScaleArrowRenderer {
+            anchors.fill: parent
+            startPoint: root.geometry ? root.geometry.xStart : Qt.point(0, 0)
+            endPoint: root.geometry ? root.geometry.xEnd : Qt.point(0, 0)
+            color: root.xAxisColor
+            lineWidth: root.lineWidth
+            squareSize: 12
+        }
 
-            // Draw uniform scale handle at center
-            squareHandlePrimitive.draw(ctx, geometry.center, root.uniformColor, 8)
+        // Y axis (green) with square end
+        ScaleArrowRenderer {
+            anchors.fill: parent
+            startPoint: root.geometry ? root.geometry.yStart : Qt.point(0, 0)
+            endPoint: root.geometry ? root.geometry.yEnd : Qt.point(0, 0)
+            color: root.yAxisColor
+            lineWidth: root.lineWidth
+            squareSize: 12
+        }
 
-            // Draw X axis (red) with square end
-            arrowPrimitive.drawWithSquare(ctx, geometry.xStart, geometry.xEnd, root.xAxisColor, root.lineWidth, 12)
-
-            // Draw Y axis (green) with square end
-            arrowPrimitive.drawWithSquare(ctx, geometry.yStart, geometry.yEnd, root.yAxisColor, root.lineWidth, 12)
-
-            // Draw Z axis (blue) with square end
-            arrowPrimitive.drawWithSquare(ctx, geometry.zStart, geometry.zEnd, root.zAxisColor, root.lineWidth, 12)
+        // Z axis (blue) with square end
+        ScaleArrowRenderer {
+            anchors.fill: parent
+            startPoint: root.geometry ? root.geometry.zStart : Qt.point(0, 0)
+            endPoint: root.geometry ? root.geometry.zEnd : Qt.point(0, 0)
+            color: root.zAxisColor
+            lineWidth: root.lineWidth
+            squareSize: 12
         }
     }
 
     // Geometric hit detection (uses HitTester)
+    // Caches geometry to avoid recalculating on press
     function getHitRegion(x, y) {
-        var geometry = calculateGizmoGeometry()
-        var result = HitTester.testScaleGizmoHit(Qt.point(x, y), geometry, 10, 12)
+        lastHitTestGeometry = calculateGizmoGeometry()
+        var result = HitTester.testScaleGizmoHit(Qt.point(x, y), lastHitTestGeometry, 10, 12)
 
         // Convert result format to match expected API
         if (result.type === "center") {
@@ -159,6 +275,10 @@ Item {
 
             if (hitInfo.type === "axis") {
                 root.activeAxis = hitInfo.axis
+
+                // Start drag - cache projector
+                root.isDragging = true
+                root.cachedProjector = View3DProjectionAdapter.createProjector(root.view3d)
 
                 // Calculate screen-space parameters for axis-constrained scaling
                 dragStartScreenPos = Qt.point(mouse.x, mouse.y)
@@ -199,9 +319,12 @@ Item {
 
                 mouse.accepted = true
                 preventStealing = true
-                root.repaintGizmo()
             } else if (hitInfo.type === "uniform") {
                 root.activeAxis = GizmoEnums.Axis.Uniform  // Uniform scaling
+
+                // Start drag - cache projector
+                root.isDragging = true
+                root.cachedProjector = View3DProjectionAdapter.createProjector(root.view3d)
 
                 // For uniform scaling, use distance from camera to target
                 if (root.view3d && root.view3d.camera) {
@@ -217,7 +340,6 @@ Item {
 
                 mouse.accepted = true
                 preventStealing = true
-                root.repaintGizmo()
             } else {
                 root.activeAxis = GizmoEnums.Axis.None
                 mouse.accepted = false
@@ -293,8 +415,8 @@ Item {
                 // Emit axis-constrained scale delta with transform mode
                 root.scaleDelta(root.activeAxis, root.transformMode, scaleFactor, root.snapEnabled)
             }
-
-            root.repaintGizmo()
+            // Note: updateGeometry() removed - geometry is cached at drag start,
+            // visual feedback (colors) changes during drag via property bindings
         }
 
         onReleased: (mouse) => {
@@ -306,47 +428,15 @@ Item {
             }
             root.activeAxis = GizmoEnums.Axis.None
             preventStealing = false
-            root.repaintGizmo()
+
+            // End drag - clear cached projector
+            root.isDragging = false
+            root.cachedProjector = null
         }
     }
 
-    // Helper function to repaint canvas
+    // Legacy API compatibility - no-op since geometry is now reactive
     function repaintGizmo() {
-        canvas.requestPaint()
-    }
-
-    // Repaint when target position changes
-    Connections {
-        target: root.targetNode
-        function onPositionChanged() {
-            root.repaintGizmo()
-        }
-        function onScaleChanged() {
-            root.repaintGizmo()
-        }
-    }
-
-    // Repaint when target rotation changes (needed for local mode)
-    Connections {
-        target: root.targetNode
-        enabled: root.transformMode === GizmoEnums.TransformMode.Local
-        function onRotationChanged() {
-            root.repaintGizmo()
-        }
-    }
-
-    // Repaint when view3d camera changes
-    Connections {
-        target: root.view3d ? root.view3d.camera : null
-        function onPositionChanged() {
-            root.repaintGizmo()
-        }
-        function onRotationChanged() {
-            root.repaintGizmo()
-        }
-    }
-
-    Component.onCompleted: {
-        repaintGizmo()
+        // Geometry updates automatically via property bindings
     }
 }

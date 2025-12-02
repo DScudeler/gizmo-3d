@@ -47,8 +47,8 @@ Item {
             // Convert axis number to 3D direction based on transform mode
             var axisDirection
             if (transformMode === GizmoEnums.TransformMode.Local) {
-                // Calculate local axes from target node's rotation
-                var localAxes = GizmoMath.getLocalAxes(root.targetNode.rotation)
+                // Calculate local axes from target node's scene rotation (includes parent transforms)
+                var localAxes = GizmoMath.getLocalAxes(root.targetNode.sceneRotation)
                 axisDirection = axis === GizmoEnums.Axis.X ? localAxes.x
                              : axis === GizmoEnums.Axis.Y ? localAxes.y
                              : localAxes.z
@@ -77,11 +77,23 @@ Item {
         }
 
         function onPlaneTranslationDelta(plane, transformMode, delta, snapActive) {
-            // Delta is already in world space for all modes, just apply it
+            var deltaVec
+            if (transformMode === GizmoEnums.TransformMode.Local) {
+                // Local mode: delta components are along local axes, convert to world space
+                var localAxes = GizmoMath.getLocalAxes(root.targetNode.sceneRotation)
+                deltaVec = Qt.vector3d(
+                    localAxes.x.x * delta.x + localAxes.y.x * delta.y + localAxes.z.x * delta.z,
+                    localAxes.x.y * delta.x + localAxes.y.y * delta.y + localAxes.z.y * delta.z,
+                    localAxes.x.z * delta.x + localAxes.y.z * delta.y + localAxes.z.z * delta.z
+                )
+            } else {
+                // World mode: delta is already in world space
+                deltaVec = delta
+            }
             root.targetNode.position = Qt.vector3d(
-                root.dragStartPos.x + delta.x,
-                root.dragStartPos.y + delta.y,
-                root.dragStartPos.z + delta.z
+                root.dragStartPos.x + deltaVec.x,
+                root.dragStartPos.y + deltaVec.y,
+                root.dragStartPos.z + deltaVec.z
             )
         }
     }
@@ -92,7 +104,7 @@ Item {
         ignoreUnknownSignals: true
 
         function onRotationStarted(axis) {
-            root.dragStartRot = root.targetNode.rotation
+            root.dragStartRot = root.targetNode.sceneRotation
         }
 
         function onRotationDelta(axis, transformMode, angleDegrees, snapActive) {
@@ -101,6 +113,7 @@ Item {
             if (transformMode === GizmoEnums.TransformMode.Local) {
                 // Use local axes from DRAG START rotation, not current rotation
                 // This ensures the axis remains consistent throughout the drag operation
+                // Note: dragStartRot is already in scene space from onRotationStarted
                 var localAxes = GizmoMath.getLocalAxes(root.dragStartRot)
                 axisDirection = axis === GizmoEnums.Axis.X ? localAxes.x
                              : axis === GizmoEnums.Axis.Y ? localAxes.y

@@ -2,6 +2,7 @@
 build/
 build-*/
 *.user
+install/
 
 # IDE settings
 .vscode/

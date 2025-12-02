@@ -44,8 +44,8 @@ GlobalGizmo {
     anchors.fill: parent
     view3d: view3d
     targetNode: targetCube
-    mode: "translate"     // or "rotate", "scale", "both", "all"
-    transformMode: "world" // or "local"
+    mode: GizmoEnums.Mode.Translate  // or Rotate, Scale, Both, All
+    transformMode: GizmoEnums.TransformMode.World  // or GizmoEnums.TransformMode.Local
     snapEnabled: true
 }
 
@@ -75,40 +75,40 @@ The 3D object to manipulate.
 
 ### Mode Control
 
-#### `mode : string`
+#### `mode : int`
 
 Active manipulation mode.
 
-**Type**: string
-**Default**: `"translate"`
+**Type**: int (GizmoEnums.Mode enum)
+**Default**: `GizmoEnums.Mode.Translate`
 **Valid Values**:
-- `"translate"`: Show only TranslationGizmo
-- `"rotate"`: Show only RotationGizmo
-- `"scale"`: Show only ScaleGizmo
-- `"both"`: Show TranslationGizmo and RotationGizmo (legacy compatibility)
-- `"all"`: Show all three gizmos with composite arrow layout
+- `GizmoEnums.Mode.Translate` (0): Show only TranslationGizmo
+- `GizmoEnums.Mode.Rotate` (1): Show only RotationGizmo
+- `GizmoEnums.Mode.Scale` (2): Show only ScaleGizmo
+- `GizmoEnums.Mode.Both` (3): Show TranslationGizmo and RotationGizmo
+- `GizmoEnums.Mode.All` (4): Show all three gizmos with composite arrow layout
 
 ```qml
 GlobalGizmo {
-    mode: "all"  // Translation arrows (outer) + Scale handles (inner) + Rotation circles
+    mode: GizmoEnums.Mode.All  // Translation arrows (outer) + Scale handles (inner) + Rotation circles
 }
 ```
 
-**Composite Mode ("all")**: In this mode, scale handles occupy the inner portion of arrows (0-50%) and translation arrows occupy the outer portion (50-100%), creating a combined visual appearance.
+**Composite Mode (All)**: In this mode, scale handles occupy the inner portion of arrows (0-50%) and translation arrows occupy the outer portion (50-100%), creating a combined visual appearance.
 
-#### `transformMode : string`
+#### `transformMode : int`
 
 Coordinate system for manipulation.
 
-**Type**: string
-**Default**: `"world"`
+**Type**: int
+**Default**: `GizmoEnums.TransformMode.World`
 **Valid Values**:
-- `"world"`: Axes aligned with global coordinate system
-- `"local"`: Axes aligned with object's rotation
+- `GizmoEnums.TransformMode.World` (0): Axes aligned with global coordinate system
+- `GizmoEnums.TransformMode.Local` (1): Axes aligned with object's rotation
 
 ```qml
 GlobalGizmo {
-    transformMode: "local"  // Gizmo follows object rotation
+    transformMode: GizmoEnums.TransformMode.Local  // Gizmo follows object rotation
 }
 ```
 
@@ -189,7 +189,7 @@ True when any child gizmo is being manipulated.
 
 #### `isCompositeMode : bool`
 
-True when `mode === "all"`.
+True when `mode === GizmoEnums.Mode.All`.
 
 **Type**: bool
 **Read-Only**: Yes
@@ -236,19 +236,21 @@ See [ScaleGizmo API](scale-gizmo.md#signals) for parameter details.
 ```qml
 GlobalGizmo {
     id: gizmo
-    mode: "translate"
+    mode: GizmoEnums.Mode.Translate
 }
 
 Item {
     focus: true
     Keys.onPressed: (event) => {
-        if (event.key === Qt.Key_T) gizmo.mode = "translate"
-        else if (event.key === Qt.Key_R) gizmo.mode = "rotate"
-        else if (event.key === Qt.Key_S) gizmo.mode = "scale"
-        else if (event.key === Qt.Key_A) gizmo.mode = "all"
+        if (event.key === Qt.Key_T) gizmo.mode = GizmoEnums.Mode.Translate
+        else if (event.key === Qt.Key_R) gizmo.mode = GizmoEnums.Mode.Rotate
+        else if (event.key === Qt.Key_S) gizmo.mode = GizmoEnums.Mode.Scale
+        else if (event.key === Qt.Key_A) gizmo.mode = GizmoEnums.Mode.All
         else if (event.key === Qt.Key_G) {
             // Toggle world/local
-            gizmo.transformMode = gizmo.transformMode === "world" ? "local" : "world"
+            gizmo.transformMode = gizmo.transformMode === GizmoEnums.TransformMode.World
+                ? GizmoEnums.TransformMode.Local
+                : GizmoEnums.TransformMode.World
         }
     }
 }
@@ -260,29 +262,31 @@ Item {
 Row {
     Button {
         text: "Translate"
-        highlighted: gizmo.mode === "translate"
-        onClicked: gizmo.mode = "translate"
+        highlighted: gizmo.mode === GizmoEnums.Mode.Translate
+        onClicked: gizmo.mode = GizmoEnums.Mode.Translate
     }
     Button {
         text: "Rotate"
-        highlighted: gizmo.mode === "rotate"
-        onClicked: gizmo.mode = "rotate"
+        highlighted: gizmo.mode === GizmoEnums.Mode.Rotate
+        onClicked: gizmo.mode = GizmoEnums.Mode.Rotate
     }
     Button {
         text: "Scale"
-        highlighted: gizmo.mode === "scale"
-        onClicked: gizmo.mode = "scale"
+        highlighted: gizmo.mode === GizmoEnums.Mode.Scale
+        onClicked: gizmo.mode = GizmoEnums.Mode.Scale
     }
     Button {
         text: "All"
-        highlighted: gizmo.mode === "all"
-        onClicked: gizmo.mode = "all"
+        highlighted: gizmo.mode === GizmoEnums.Mode.All
+        onClicked: gizmo.mode = GizmoEnums.Mode.All
     }
 
     // World/Local toggle
     Button {
-        text: gizmo.transformMode === "world" ? "World" : "Local"
-        onClicked: gizmo.transformMode = gizmo.transformMode === "world" ? "local" : "world"
+        text: gizmo.transformMode === GizmoEnums.TransformMode.World ? "World" : "Local"
+        onClicked: gizmo.transformMode = gizmo.transformMode === GizmoEnums.TransformMode.World
+            ? GizmoEnums.TransformMode.Local
+            : GizmoEnums.TransformMode.World
     }
 }
 ```
@@ -302,9 +306,9 @@ GlobalGizmo {
     }
     onAxisTranslationDelta: (axis, mode, delta, snap) => {
         var pos = dragStartPos
-        if (axis === 1) pos.x += delta
-        else if (axis === 2) pos.y += delta
-        else if (axis === 3) pos.z += delta
+        if (axis === GizmoEnums.Axis.X) pos.x += delta
+        else if (axis === GizmoEnums.Axis.Y) pos.y += delta
+        else if (axis === GizmoEnums.Axis.Z) pos.z += delta
         targetCube.position = pos
     }
 
@@ -313,8 +317,8 @@ GlobalGizmo {
         dragStartRot = targetCube.rotation
     }
     onRotationDelta: (axis, mode, angle, snap) => {
-        var axisVec = axis === 1 ? Qt.vector3d(1, 0, 0)
-                    : axis === 2 ? Qt.vector3d(0, 1, 0)
+        var axisVec = axis === GizmoEnums.Axis.X ? Qt.vector3d(1, 0, 0)
+                    : axis === GizmoEnums.Axis.Y ? Qt.vector3d(0, 1, 0)
                     : Qt.vector3d(0, 0, 1)
         var deltaQuat = GizmoMath.quaternionFromAxisAngle(axisVec, angle)
         targetCube.rotation = deltaQuat.times(dragStartRot)
@@ -325,7 +329,7 @@ GlobalGizmo {
         dragStartScale = targetCube.scale
     }
     onScaleDelta: (axis, mode, factor, snap) => {
-        if (axis === 4) {
+        if (axis === GizmoEnums.Axis.Uniform) {
             // Uniform
             targetCube.scale = Qt.vector3d(
                 dragStartScale.x * factor,
@@ -334,9 +338,9 @@ GlobalGizmo {
             )
         } else {
             var scale = dragStartScale
-            if (axis === 1) scale.x *= factor
-            else if (axis === 2) scale.y *= factor
-            else if (axis === 3) scale.z *= factor
+            if (axis === GizmoEnums.Axis.X) scale.x *= factor
+            else if (axis === GizmoEnums.Axis.Y) scale.y *= factor
+            else if (axis === GizmoEnums.Axis.Z) scale.z *= factor
             targetCube.scale = scale
         }
     }
@@ -349,11 +353,11 @@ GlobalGizmo {
 
 ```
 GlobalGizmo (Item)
-├── ScaleGizmo (visible when mode = "scale" or "all")
+├── ScaleGizmo (visible when mode = Scale or All)
 │   └── arrowEndRatio: isCompositeMode ? 0.5 : 1.0
-├── TranslationGizmo (visible when mode = "translate" or "both" or "all")
+├── TranslationGizmo (visible when mode = Translate or Both or All)
 │   └── arrowStartRatio: isCompositeMode ? 0.5 : 0.0
-├── RotationGizmo (visible when mode = "rotate" or "both" or "all")
+├── RotationGizmo (visible when mode = Rotate or Both or All)
 │   └── z: 1 (renders on top)
 ├── Connections → TranslationGizmo (signal forwarding)
 ├── Connections → RotationGizmo (signal forwarding)
@@ -376,7 +380,7 @@ GlobalGizmo (Item)
 
 ### Arrow Ratio in Composite Mode
 
-In "all" mode, arrows are divided:
+In `GizmoEnums.Mode.All`, arrows are divided:
 - **ScaleGizmo**: `arrowStartRatio: 0.0`, `arrowEndRatio: 0.5` (inner half)
 - **TranslationGizmo**: `arrowStartRatio: 0.5`, `arrowEndRatio: 1.0` (outer half)
 

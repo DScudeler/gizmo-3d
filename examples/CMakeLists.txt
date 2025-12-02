@@ -10,6 +10,8 @@ qt_add_qml_module(gizmo3d_example
         SimpleController.qml
 )
 
+target_compile_definitions(gizmo3d_example PRIVATE QT_QML_DEBUG)
+
 target_link_libraries(gizmo3d_example PRIVATE
     Qt6::Core
     Qt6::Gui

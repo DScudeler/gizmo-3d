@@ -131,7 +131,7 @@ Window {
         anchors.fill: parent
         view3d: view3d
         targetNode: cube
-        mode: "both"  // Show translation and rotation simultaneously
+        mode: GizmoEnums.Mode.Both  // Show translation and rotation simultaneously
     }
 
     SimpleController {
@@ -146,15 +146,15 @@ Window {
 ```qml
 GlobalGizmo {
     id: gizmo
-    mode: "translate"
+    mode: GizmoEnums.Mode.Translate
 }
 
 Item {
     focus: true
     Keys.onPressed: (event) => {
-        if (event.key === Qt.Key_T) gizmo.mode = "translate"
-        else if (event.key === Qt.Key_R) gizmo.mode = "rotate"
-        else if (event.key === Qt.Key_B) gizmo.mode = "both"
+        if (event.key === Qt.Key_T) gizmo.mode = GizmoEnums.Mode.Translate
+        else if (event.key === Qt.Key_R) gizmo.mode = GizmoEnums.Mode.Rotate
+        else if (event.key === Qt.Key_B) gizmo.mode = GizmoEnums.Mode.Both
     }
 }
 
@@ -198,7 +198,8 @@ View3D {
     }
 }
 
-property bool gizmoActive: gizmo.activeAxis !== 0 || rotationGizmo.activeAxis !== 0
+property bool gizmoActive: gizmo.activeAxis !== GizmoEnums.Axis.None ||
+                           rotationGizmo.activeAxis !== GizmoEnums.Axis.None
 
 TranslationGizmo {
     id: gizmo
@@ -249,11 +250,11 @@ Item {
             dragStartPos = cube.position
         }
 
-        function onAxisTranslationDelta(axis, delta, snapActive) {
+        function onAxisTranslationDelta(axis, transformMode, delta, snapActive) {
             var newPos = dragStartPos
-            if (axis === 1) newPos.x += delta
-            else if (axis === 2) newPos.y += delta
-            else if (axis === 3) newPos.z += delta
+            if (axis === GizmoEnums.Axis.X) newPos.x += delta
+            else if (axis === GizmoEnums.Axis.Y) newPos.y += delta
+            else if (axis === GizmoEnums.Axis.Z) newPos.z += delta
 
             // Clamp to bounds
             newPos.x = Math.max(-100, Math.min(100, newPos.x))

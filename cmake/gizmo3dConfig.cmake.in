@@ -1,0 +1,6 @@
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+find_dependency(Qt6 COMPONENTS Core Gui Qml Quick Quick3D)
+
+include("${CMAKE_CURRENT_LIST_DIR}/gizmo3dTargets.cmake")

@@ -22,13 +22,13 @@ Item {
 
     // State tracking
     property int activeAxis: GizmoEnums.Axis.None  // YZ plane (X-rotation), ZX plane (Y-rotation), XY plane (Z-rotation)
-    property vector3d targetPosition: targetNode ? targetNode.position : Qt.vector3d(0, 0, 0)
+    property vector3d targetPosition: targetNode ? targetNode.scenePosition : Qt.vector3d(0, 0, 0)
     property bool isActive: activeAxis !== GizmoEnums.Axis.None
 
     // Computed local/world axes based on transform mode
     readonly property var currentAxes: {
         if (transformMode === GizmoEnums.TransformMode.Local && targetNode) {
-            return GizmoMath.getLocalAxes(targetNode.rotation)
+            return GizmoMath.getLocalAxes(targetNode.sceneRotation)
         } else {
             return {
                 x: Qt.vector3d(1, 0, 0),
@@ -36,16 +36,6 @@ Item {
                 z: Qt.vector3d(0, 0, 1)
             }
         }
-    }
-
-    // Handle targetNode changes to trigger repaint (binding handles position updates)
-    onTargetNodeChanged: {
-        repaintGizmo()
-    }
-
-    // Handle transform mode changes to trigger repaint (world/local switch)
-    onTransformModeChanged: {
-        repaintGizmo()
     }
 
     // Snap configuration
@@ -63,36 +53,168 @@ Item {
     readonly property color yAxisColor: activeAxis === GizmoEnums.Axis.Y ? "#66ff66" : "#00ff00"
     readonly property color zAxisColor: activeAxis === GizmoEnums.Axis.Z ? "#6666ff" : "#0000ff"
 
+    anchors.fill: parent
 
-    // ========================================
-    // Circle Geometry Calculation
-    // ========================================
+    // Performance optimization: drag state and caching
+    property bool isDragging: false
+    property var cachedProjector: null
+    property var lastHitTestGeometry: null
 
-    // Calculate the angle on a rotation plane that faces the camera (uses geometry calculator)
-    function calculateCameraFacingAngle(planeNormal, referenceAxis) {
-        if (!view3d || !view3d.camera) return 0
+    // External control flag - when true, parent manages geometry updates via FrameAnimation
+    property bool managedByParent: false
 
-        var projector = View3DProjectionAdapter.createProjector(view3d)
-        if (!projector) return 0
+    // Geometry property - updated by FrameAnimation or parent coordinator
+    property var geometry: null
 
-        return RotationGeometryCalculator.calculateCameraFacingAngle(
-            targetPosition, planeNormal, referenceAxis, projector
+    // Camera-facing angles for partial arc rendering - updated by FrameAnimation
+    property real yzFacingAngle: 0
+    property real zxFacingAngle: 0
+    property real xyFacingAngle: 0
+
+    // Previous frame radii for temporal smoothing to eliminate jitter
+    property var _previousRadii: null
+
+    // Dirty-checking state for performance optimization (standalone mode only)
+    property vector3d _lastCameraPos: Qt.vector3d(0, 0, 0)
+    property quaternion _lastCameraRot: Qt.quaternion(1, 0, 0, 0)
+    property vector3d _lastTargetPos: Qt.vector3d(0, 0, 0)
+    property quaternion _lastTargetRot: Qt.quaternion(1, 0, 0, 0)
+    property int _lastTransformMode: -1
+
+    // Check if camera or target transforms have changed since last frame
+    function _transformsChanged() {
+        if (!view3d || !view3d.camera || !targetNode) return true
+
+        var cam = view3d.camera
+        var epsilon = 0.0001
+
+        // Check camera position
+        var camPos = cam.scenePosition
+        if (Math.abs(camPos.x - _lastCameraPos.x) > epsilon ||
+            Math.abs(camPos.y - _lastCameraPos.y) > epsilon ||
+            Math.abs(camPos.z - _lastCameraPos.z) > epsilon) {
+            return true
+        }
+
+        // Check camera rotation
+        var camRot = cam.sceneRotation
+        if (Math.abs(camRot.x - _lastCameraRot.x) > epsilon ||
+            Math.abs(camRot.y - _lastCameraRot.y) > epsilon ||
+            Math.abs(camRot.z - _lastCameraRot.z) > epsilon ||
+            Math.abs(camRot.scalar - _lastCameraRot.scalar) > epsilon) {
+            return true
+        }
+
+        // Check target position
+        var targetPos = targetNode.scenePosition
+        if (Math.abs(targetPos.x - _lastTargetPos.x) > epsilon ||
+            Math.abs(targetPos.y - _lastTargetPos.y) > epsilon ||
+            Math.abs(targetPos.z - _lastTargetPos.z) > epsilon) {
+            return true
+        }
+
+        // Check target rotation (matters for local transform mode)
+        var targetRot = targetNode.sceneRotation
+        if (Math.abs(targetRot.x - _lastTargetRot.x) > epsilon ||
+            Math.abs(targetRot.y - _lastTargetRot.y) > epsilon ||
+            Math.abs(targetRot.z - _lastTargetRot.z) > epsilon ||
+            Math.abs(targetRot.scalar - _lastTargetRot.scalar) > epsilon) {
+            return true
+        }
+
+        // Check transform mode change
+        if (_lastTransformMode !== transformMode) {
+            return true
+        }
+
+        return false
+    }
+
+    // Update cached state after geometry update
+    function _updateCachedState() {
+        if (!view3d || !view3d.camera || !targetNode) return
+
+        var cam = view3d.camera
+        _lastCameraPos = cam.scenePosition
+        _lastCameraRot = cam.sceneRotation
+        _lastTargetPos = targetNode.scenePosition
+        _lastTargetRot = targetNode.sceneRotation
+        _lastTransformMode = transformMode
+    }
+
+    visible: targetNode !== null && view3d !== null
+
+    // Internal FrameAnimation for standalone operation (disabled when managed by parent)
+    FrameAnimation {
+        id: internalAnimation
+        running: !root.managedByParent && root.visible && root.view3d && root.targetNode
+
+        onTriggered: {
+            // Skip geometry update if nothing has changed (performance optimization)
+            if (!root._transformsChanged()) return
+
+            var projector = View3DProjectionAdapter.createProjector(root.view3d)
+            if (projector) {
+                root.updateGeometry(projector)
+                root._updateCachedState()
+            }
+        }
+    }
+
+    /**
+     * Updates geometry and facing angles using the provided projector.
+     * Called by parent coordinator (GlobalGizmo) or internal FrameAnimation.
+     * Uses ONE shared projector for all calculations (was 4 projectors before).
+     * @param projector - Shared projector object from View3DProjectionAdapter
+     */
+    function updateGeometry(projector) {
+        if (!view3d || !view3d.camera || !targetNode) {
+            geometry = null
+            return
+        }
+
+        // Use drag start axes during active rotation for stable wedge rendering
+        var axesToUse = (activeAxis !== GizmoEnums.Axis.None && dragStartAxes) ? dragStartAxes : currentAxes
+
+        // Calculate main geometry with temporal smoothing
+        var newGeometry = RotationGeometryCalculator.calculateCircleGeometry({
+            projector: projector,
+            targetPosition: targetNode.scenePosition,
+            axes: axesToUse,
+            gizmoSize: gizmoSize,
+            maxScreenRadius: maxScreenRadius,
+            segments: 64,
+            previousRadii: _previousRadii,
+            smoothingFactor: 0.3
+        })
+
+        geometry = newGeometry
+        // Save radii for next frame smoothing
+        if (newGeometry && newGeometry.radii) {
+            _previousRadii = newGeometry.radii
+        }
+
+        // Calculate all 3 facing angles with the SAME projector (was 3 separate projectors)
+        yzFacingAngle = RotationGeometryCalculator.calculateCameraFacingAngle(
+            targetNode.scenePosition, currentAxes.x, currentAxes.y, projector
+        )
+        zxFacingAngle = RotationGeometryCalculator.calculateCameraFacingAngle(
+            targetNode.scenePosition, currentAxes.y, currentAxes.z, projector
+        )
+        xyFacingAngle = RotationGeometryCalculator.calculateCameraFacingAngle(
+            targetNode.scenePosition, currentAxes.z, currentAxes.x, projector
         )
     }
 
+    // Helper for hit testing - needs fresh geometry calculation
     function calculateCircleGeometry() {
         if (!view3d || !view3d.camera || !targetNode) return null
-
         var projector = View3DProjectionAdapter.createProjector(view3d)
         if (!projector) return null
-
-        // Use drag start axes during active rotation for stable wedge rendering
-        // This ensures the filled wedge origin stays fixed at the click position
         var axesToUse = (activeAxis !== GizmoEnums.Axis.None && dragStartAxes) ? dragStartAxes : currentAxes
-
         return RotationGeometryCalculator.calculateCircleGeometry({
             projector: projector,
-            targetPosition: targetPosition,
+            targetPosition: targetNode.scenePosition,
             axes: axesToUse,
             gizmoSize: gizmoSize,
             maxScreenRadius: maxScreenRadius,
@@ -100,88 +222,82 @@ Item {
         })
     }
 
-
     // ========================================
-    // Drawing Primitives
+    // Helper Functions
     // ========================================
 
-    CirclePrimitive {
-        id: circlePrimitive
-        fillAlpha: 0.5
-        lineCap: "round"
-        lineJoin: "round"
+    // Calculate the angle on a rotation plane that faces the camera (uses geometry calculator)
+    function calculateCameraFacingAngle(planeNormal, referenceAxis) {
+        if (!view3d || !view3d.camera || !targetNode) return 0
+        var projector = View3DProjectionAdapter.createProjector(view3d)
+        if (!projector) return 0
+        return RotationGeometryCalculator.calculateCameraFacingAngle(
+            targetNode.scenePosition, planeNormal, referenceAxis, projector
+        )
     }
 
     // ========================================
-    // Visible Canvas
+    // Rendering Layer - QtQuick.Shapes based
     // ========================================
 
-    Canvas {
-        id: canvas
+    Item {
+        id: renderLayer
         anchors.fill: parent
-        renderStrategy: Canvas.Threaded
-        renderTarget: Canvas.FramebufferObject
 
-        onPaint: {
-            var geometry = root.calculateCircleGeometry()
-            if (!geometry) return
+        property real arcRangeRadians: root.inactiveArcRange * (Math.PI / 180)
 
-            var ctx = getContext("2d", { alpha: true })
-            ctx.reset()
-            ctx.clearRect(0, 0, width, height)
+        // YZ plane (X-axis rotation) - Red
+        CircleRenderer {
+            anchors.fill: parent
+            points: root.geometry ? root.geometry.circles.yz : []
+            center: root.geometry ? root.geometry.center : Qt.point(0, 0)
+            color: root.xAxisColor
+            lineWidth: root.activeAxis === GizmoEnums.Axis.X ? 4 : 2
 
-            // Enable anti-aliasing for smooth appearance
-            ctx.antialias = true
-            ctx.imageSmoothingEnabled = true
+            // Full circle with fill when active, partial arc when inactive
+            partialArc: root.activeAxis !== GizmoEnums.Axis.X
+            arcCenter: root.yzFacingAngle
+            arcRange: renderLayer.arcRangeRadians
 
-            // Calculate camera-facing angles for each plane (used for partial arc rendering when inactive)
-            // Use currentAxes to support local mode - angles must match circle geometry
-            var axes = root.currentAxes
-            var yzFacingAngle = root.calculateCameraFacingAngle(axes.x, axes.y)  // YZ plane, Y reference
-            var zxFacingAngle = root.calculateCameraFacingAngle(axes.y, axes.z)  // ZX plane, Z reference
-            var xyFacingAngle = root.calculateCameraFacingAngle(axes.z, axes.x)  // XY plane, X reference
+            filled: root.activeAxis === GizmoEnums.Axis.X
+            arcStart: root.dragStartAngle
+            arcEnd: root.currentAngle
+        }
 
-            var arcRangeRadians = root.inactiveArcRange * (Math.PI / 180)
+        // ZX plane (Y-axis rotation) - Green
+        CircleRenderer {
+            anchors.fill: parent
+            points: root.geometry ? root.geometry.circles.zx : []
+            center: root.geometry ? root.geometry.center : Qt.point(0, 0)
+            color: root.yAxisColor
+            lineWidth: root.activeAxis === GizmoEnums.Axis.Y ? 4 : 2
 
-            // Draw circles with active arc highlighting
-            // YZ plane (X-axis rotation) - Red
-            if (root.activeAxis === GizmoEnums.Axis.X) {
-                // Active: full circle with filled rotation arc
-                circlePrimitive.draw(ctx, geometry.circles.yz, geometry.center, root.xAxisColor, 4, true,
-                          root.dragStartAngle, root.currentAngle, "YZ-plane(X-RED-ACTIVE)", false)
-            } else {
-                // Inactive: partial arc facing camera
-                circlePrimitive.draw(ctx, geometry.circles.yz, geometry.center, "#ff0000", 2, false,
-                          undefined, undefined, "YZ-plane(X-RED-inactive)", true, yzFacingAngle, arcRangeRadians)
-            }
+            partialArc: root.activeAxis !== GizmoEnums.Axis.Y
+            arcCenter: root.zxFacingAngle
+            arcRange: renderLayer.arcRangeRadians
 
-            // ZX plane (Y-axis rotation) - Green
-            if (root.activeAxis === GizmoEnums.Axis.Y) {
-                // Active: full circle with filled rotation arc
-                circlePrimitive.draw(ctx, geometry.circles.zx, geometry.center, root.yAxisColor, 4, true,
-                          root.dragStartAngle, root.currentAngle, "ZX-plane(Y-GREEN-ACTIVE)", false)
-            } else {
-                // Inactive: partial arc facing camera
-                circlePrimitive.draw(ctx, geometry.circles.zx, geometry.center, "#00ff00", 2, false,
-                          undefined, undefined, "ZX-plane(Y-GREEN-inactive)", true, zxFacingAngle, arcRangeRadians)
-            }
+            filled: root.activeAxis === GizmoEnums.Axis.Y
+            arcStart: root.dragStartAngle
+            arcEnd: root.currentAngle
+        }
 
-            // XY plane (Z-axis rotation) - Blue
-            if (root.activeAxis === GizmoEnums.Axis.Z) {
-                // Active: full circle with filled rotation arc
-                circlePrimitive.draw(ctx, geometry.circles.xy, geometry.center, root.zAxisColor, 4, true,
-                          root.dragStartAngle, root.currentAngle, "XY-plane(Z-BLUE-ACTIVE)", false)
-            } else {
-                // Inactive: partial arc facing camera
-                circlePrimitive.draw(ctx, geometry.circles.xy, geometry.center, "#0000ff", 2, false,
-                          undefined, undefined, "XY-plane(Z-BLUE-inactive)", true, xyFacingAngle, arcRangeRadians)
-            }
+        // XY plane (Z-axis rotation) - Blue
+        CircleRenderer {
+            anchors.fill: parent
+            points: root.geometry ? root.geometry.circles.xy : []
+            center: root.geometry ? root.geometry.center : Qt.point(0, 0)
+            color: root.zAxisColor
+            lineWidth: root.activeAxis === GizmoEnums.Axis.Z ? 4 : 2
+
+            partialArc: root.activeAxis !== GizmoEnums.Axis.Z
+            arcCenter: root.xyFacingAngle
+            arcRange: renderLayer.arcRangeRadians
+
+            filled: root.activeAxis === GizmoEnums.Axis.Z
+            arcStart: root.dragStartAngle
+            arcEnd: root.currentAngle
         }
     }
-
-    // ========================================
-    // Hit-Test Canvas (Hidden)
-    // ========================================
 
     // ========================================
     // Geometric Hit Detection
@@ -213,21 +329,23 @@ Item {
     }
 
     // Geometric hit detection using circle geometry
+    // Caches geometry to avoid recalculating on press
     function getHitAxis(x, y) {
-        var geometry = calculateCircleGeometry()
-        if (!geometry) {
+        lastHitTestGeometry = calculateCircleGeometry()
+        if (!lastHitTestGeometry) {
             return GizmoEnums.Axis.None
         }
+        var geom = lastHitTestGeometry
 
         var mousePos = Qt.point(x, y)
         var hitThreshold = 8  // pixels (half of old lineWidth=15, tuned for accuracy)
 
         // Test each circle - use currentAxes for local mode support
-        var axes = root.currentAxes
+        var axes = currentAxes
         var circleTests = [
-            {axis: GizmoEnums.Axis.X, points: geometry.circles.yz, planeNormal: axes.x, refAxis: axes.y},  // X-rotation (YZ plane)
-            {axis: GizmoEnums.Axis.Y, points: geometry.circles.zx, planeNormal: axes.y, refAxis: axes.z},  // Y-rotation (ZX plane)
-            {axis: GizmoEnums.Axis.Z, points: geometry.circles.xy, planeNormal: axes.z, refAxis: axes.x}   // Z-rotation (XY plane)
+            {axis: GizmoEnums.Axis.X, points: geom.circles.yz, planeNormal: axes.x, refAxis: axes.y},  // X-rotation (YZ plane)
+            {axis: GizmoEnums.Axis.Y, points: geom.circles.zx, planeNormal: axes.y, refAxis: axes.z},  // Y-rotation (ZX plane)
+            {axis: GizmoEnums.Axis.Z, points: geom.circles.xy, planeNormal: axes.z, refAxis: axes.x}   // Z-rotation (XY plane)
         ]
 
         var closestAxis = GizmoEnums.Axis.None
@@ -278,6 +396,10 @@ Item {
             root.activeAxis = root.getHitAxis(mouse.x, mouse.y)
 
             if (root.activeAxis !== GizmoEnums.Axis.None) {
+                // Start drag - cache projector
+                root.isDragging = true
+                root.cachedProjector = View3DProjectionAdapter.createProjector(root.view3d)
+
                 // Store axes at drag start for stable circle geometry during drag
                 root.dragStartAxes = root.currentAxes
 
@@ -309,7 +431,6 @@ Item {
 
                 mouse.accepted = true
                 preventStealing = true
-                root.repaintGizmo()
             } else {
                 mouse.accepted = false
             }
@@ -360,7 +481,8 @@ Item {
 
             // Emit delta signal with transform mode
             root.rotationDelta(root.activeAxis, root.transformMode, snappedDeltaDegrees, root.snapEnabled)
-            root.repaintGizmo()
+            // Note: updateGeometry() removed - geometry is cached at drag start,
+            // visual feedback (wedge fill) is driven by currentAngle property binding
         }
 
         onReleased: (mouse) => {
@@ -376,46 +498,15 @@ Item {
             root.currentAngle = 0.0
             root.dragStartAxes = null  // Clear stored axes
             preventStealing = false
-            root.repaintGizmo()
+
+            // End drag - clear cached projector
+            root.isDragging = false
+            root.cachedProjector = null
         }
     }
 
-    // ========================================
-    // Repaint Trigger Function
-    // ========================================
-
+    // Legacy API compatibility - no-op since geometry is now reactive
     function repaintGizmo() {
-        canvas.requestPaint()
-    }
-
-    // ========================================
-    // Automatic Repaint Connections
-    // ========================================
-
-    Connections {
-        target: root.targetNode
-        function onPositionChanged() {
-            root.repaintGizmo()  // Binding already updated targetPosition
-        }
-        function onRotationChanged() {
-            root.repaintGizmo()
-        }
-        function onEulerRotationChanged() {
-            root.repaintGizmo()
-        }
-    }
-
-    Connections {
-        target: root.view3d ? root.view3d.camera : null
-        function onPositionChanged() {
-            root.repaintGizmo()
-        }
-        function onRotationChanged() {
-            root.repaintGizmo()
-        }
-    }
-
-    Component.onCompleted: {
-        repaintGizmo()  // Binding handles position initialization
+        // Geometry updates automatically via property bindings
     }
 }

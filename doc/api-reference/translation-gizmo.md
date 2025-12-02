@@ -176,17 +176,17 @@ TranslationGizmo {
 
 #### `activeAxis : int`
 
-Currently dragged axis (0=none, 1=X, 2=Y, 3=Z).
+Currently dragged axis (uses `GizmoEnums.Axis` values).
 
 **Type**: int
 
 **Read-Only**: Yes
 
 **Values**:
-- `0`: No axis active
-- `1`: X axis (red arrow) active
-- `2`: Y axis (green arrow) active
-- `3`: Z axis (blue arrow) active
+- `GizmoEnums.Axis.None` (0): No axis active
+- `GizmoEnums.Axis.X` (1): X axis (red arrow) active
+- `GizmoEnums.Axis.Y` (2): Y axis (green arrow) active
+- `GizmoEnums.Axis.Z` (3): Z axis (blue arrow) active
 
 ```qml
 TranslationGizmo {
@@ -194,7 +194,7 @@ TranslationGizmo {
 }
 
 Text {
-    text: gizmo.activeAxis === 1 ? "Dragging X axis" : "Not dragging X"
+    text: gizmo.activeAxis === GizmoEnums.Axis.X ? "Dragging X axis" : "Not dragging X"
 }
 ```
 
@@ -202,17 +202,17 @@ Text {
 
 #### `activePlane : int`
 
-Currently dragged plane (0=none, 1=XY, 2=XZ, 3=YZ).
+Currently dragged plane (uses `GizmoEnums.Plane` values).
 
 **Type**: int
 
 **Read-Only**: Yes
 
 **Values**:
-- `0`: No plane active
-- `1`: XY plane (yellow square) active
-- `2`: XZ plane (magenta square) active
-- `3`: YZ plane (cyan square) active
+- `GizmoEnums.Plane.None` (0): No plane active
+- `GizmoEnums.Plane.XY` (1): XY plane (yellow square) active
+- `GizmoEnums.Plane.XZ` (2): XZ plane (magenta square) active
+- `GizmoEnums.Plane.YZ` (3): YZ plane (cyan square) active
 
 ```qml
 TranslationGizmo {
@@ -220,7 +220,7 @@ TranslationGizmo {
 }
 
 Text {
-    text: gizmo.activePlane === 1 ? "Dragging in XY plane" : "Not dragging plane"
+    text: gizmo.activePlane === GizmoEnums.Plane.XY ? "Dragging in XY plane" : "Not dragging plane"
 }
 ```
 
@@ -245,7 +245,7 @@ Cached position of the target node.
 Emitted when axis drag begins.
 
 **Parameters**:
-- `axis` (int): The axis being dragged (1=X, 2=Y, 3=Z)
+- `axis` (int): The axis being dragged (`GizmoEnums.Axis.X`, `GizmoEnums.Axis.Y`, or `GizmoEnums.Axis.Z`)
 
 **Usage**: Store the initial position of the target node.
 
@@ -262,13 +262,13 @@ TranslationGizmo {
 
 ---
 
-#### `axisTranslationDelta(int axis, string transformMode, real delta, bool snapActive)`
+#### `axisTranslationDelta(int axis, int transformMode, real delta, bool snapActive)`
 
 Emitted continuously during axis drag with displacement delta.
 
 **Parameters**:
-- `axis` (int): The axis being dragged (1=X, 2=Y, 3=Z)
-- `transformMode` (string): Current transform mode (`"world"` or `"local"`)
+- `axis` (int): The axis being dragged (`GizmoEnums.Axis.X`, `GizmoEnums.Axis.Y`, or `GizmoEnums.Axis.Z`)
+- `transformMode` (int): Current transform mode (`GizmoEnums.TransformMode.World` or `GizmoEnums.TransformMode.Local`)
 - `delta` (real): Displacement along the axis since drag started (world units)
 - `snapActive` (bool): Whether snapping was applied to this delta
 
@@ -282,9 +282,9 @@ TranslationGizmo {
 
     onAxisTranslationDelta: function(axis, transformMode, delta, snapActive) {
         var pos = dragStartPos
-        if (axis === 1) pos.x += delta
-        else if (axis === 2) pos.y += delta
-        else if (axis === 3) pos.z += delta
+        if (axis === GizmoEnums.Axis.X) pos.x += delta
+        else if (axis === GizmoEnums.Axis.Y) pos.y += delta
+        else if (axis === GizmoEnums.Axis.Z) pos.z += delta
         targetCube.position = pos
     }
 }
@@ -297,7 +297,7 @@ TranslationGizmo {
 Emitted when axis drag ends.
 
 **Parameters**:
-- `axis` (int): The axis that was being dragged (1=X, 2=Y, 3=Z)
+- `axis` (int): The axis that was being dragged (`GizmoEnums.Axis.X`, `GizmoEnums.Axis.Y`, or `GizmoEnums.Axis.Z`)
 
 **Usage**: Finalize the transformation, create undo history, or perform validation.
 
@@ -317,7 +317,7 @@ TranslationGizmo {
 Emitted when planar drag begins.
 
 **Parameters**:
-- `plane` (int): The plane being dragged (1=XY, 2=XZ, 3=YZ)
+- `plane` (int): The plane being dragged (`GizmoEnums.Plane.XY`, `GizmoEnums.Plane.XZ`, or `GizmoEnums.Plane.YZ`)
 
 **Usage**: Store the initial position of the target node.
 
@@ -334,17 +334,17 @@ TranslationGizmo {
 
 ---
 
-#### `planeTranslationDelta(int plane, string transformMode, vector3d delta, bool snapActive)`
+#### `planeTranslationDelta(int plane, int transformMode, vector3d delta, bool snapActive)`
 
 Emitted continuously during planar drag with displacement delta.
 
 **Parameters**:
-- `plane` (int): The plane being dragged (1=XY, 2=XZ, 3=YZ)
-- `transformMode` (string): Current transform mode (`"world"` or `"local"`)
-- `delta` (vector3d): Displacement vector since drag started (world units)
-  - **XY plane**: `delta.x` and `delta.y` contain movement, `delta.z` is 0
-  - **XZ plane**: `delta.x` and `delta.z` contain movement, `delta.y` is 0
-  - **YZ plane**: `delta.y` and `delta.z` contain movement, `delta.x` is 0
+- `plane` (int): The plane being dragged (`GizmoEnums.Plane.XY`, `GizmoEnums.Plane.XZ`, or `GizmoEnums.Plane.YZ`)
+- `transformMode` (int): Current transform mode (`GizmoEnums.TransformMode.World` or `GizmoEnums.TransformMode.Local`)
+- `delta` (vector3d): Displacement vector since drag started (local units, consistent with axis translation)
+  - **XY plane**: `delta.x` and `delta.y` contain movement along local X and Y axes, `delta.z` is 0
+  - **XZ plane**: `delta.x` and `delta.z` contain movement along local X and Z axes, `delta.y` is 0
+  - **YZ plane**: `delta.y` and `delta.z` contain movement along local Y and Z axes, `delta.x` is 0
 - `snapActive` (bool): Whether snapping was applied to this delta
 
 **Emission Frequency**: Every mouse move during drag
@@ -372,7 +372,7 @@ TranslationGizmo {
 Emitted when planar drag ends.
 
 **Parameters**:
-- `plane` (int): The plane that was being dragged (1=XY, 2=XZ, 3=YZ)
+- `plane` (int): The plane that was being dragged (`GizmoEnums.Plane.XY`, `GizmoEnums.Plane.XZ`, or `GizmoEnums.Plane.YZ`)
 
 **Usage**: Finalize the transformation, create undo history, or perform validation.
 
@@ -446,7 +446,7 @@ Reject invalid transformations:
 TranslationGizmo {
     property vector3d dragStartPos: Qt.vector3d(0, 0, 0)
 
-    onAxisTranslationDelta: function(axis, delta, snapActive) {
+    onAxisTranslationDelta: function(axis, transformMode, delta, snapActive) {
         var newPos = calculateNewPosition(axis, delta)
 
         // Validate bounds
@@ -462,9 +462,9 @@ TranslationGizmo {
     }
 
     function calculateNewPosition(axis, delta) {
-        if (axis === 1) return Qt.vector3d(dragStartPos.x + delta, dragStartPos.y, dragStartPos.z)
-        if (axis === 2) return Qt.vector3d(dragStartPos.x, dragStartPos.y + delta, dragStartPos.z)
-        if (axis === 3) return Qt.vector3d(dragStartPos.x, dragStartPos.y, dragStartPos.z + delta)
+        if (axis === GizmoEnums.Axis.X) return Qt.vector3d(dragStartPos.x + delta, dragStartPos.y, dragStartPos.z)
+        if (axis === GizmoEnums.Axis.Y) return Qt.vector3d(dragStartPos.x, dragStartPos.y + delta, dragStartPos.z)
+        if (axis === GizmoEnums.Axis.Z) return Qt.vector3d(dragStartPos.x, dragStartPos.y, dragStartPos.z + delta)
         return dragStartPos
     }
 }
@@ -484,14 +484,14 @@ TranslationGizmo {
         dragStartPositions = selectedObjects.map(obj => obj.position)
     }
 
-    onAxisTranslationDelta: function(axis, delta, snapActive) {
+    onAxisTranslationDelta: function(axis, transformMode, delta, snapActive) {
         for (var i = 0; i < selectedObjects.length; i++) {
             var startPos = dragStartPositions[i]
-            if (axis === 1) {
+            if (axis === GizmoEnums.Axis.X) {
                 selectedObjects[i].position = Qt.vector3d(startPos.x + delta, startPos.y, startPos.z)
-            } else if (axis === 2) {
+            } else if (axis === GizmoEnums.Axis.Y) {
                 selectedObjects[i].position = Qt.vector3d(startPos.x, startPos.y + delta, startPos.z)
-            } else if (axis === 3) {
+            } else if (axis === GizmoEnums.Axis.Z) {
                 selectedObjects[i].position = Qt.vector3d(startPos.x, startPos.y, startPos.z + delta)
             }
         }

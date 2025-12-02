@@ -171,12 +171,12 @@ Store drag start position and use cumulative deltas:
 // ✅ CORRECT
 property vector3d dragStartPos
 onAxisTranslationStarted: { dragStartPos = targetNode.position }
-onAxisTranslationDelta: function(axis, delta, snap) {
-    if (axis === 1) targetNode.position.x = dragStartPos.x + delta
+onAxisTranslationDelta: function(axis, transformMode, delta, snap) {
+    if (axis === GizmoEnums.Axis.X) targetNode.position.x = dragStartPos.x + delta
 }
 
 // ❌ INCORRECT (treats delta as absolute position)
-onAxisTranslationDelta: function(axis, delta, snap) {
+onAxisTranslationDelta: function(axis, transformMode, delta, snap) {
     targetNode.position.x = delta  // Jumps!
 }
 ```
@@ -251,11 +251,11 @@ var segments = 32  // Instead of 64
 
 **2. Use Single Gizmo**
 
-Instead of GlobalGizmo in "both" mode, use mode switching:
+Instead of GlobalGizmo in Both mode, use mode switching:
 
 ```qml
 GlobalGizmo {
-    mode: currentMode  // "translate" or "rotate", not "both"
+    mode: currentMode  // GizmoEnums.Mode.Translate or Rotate, not Both
 }
 ```
 

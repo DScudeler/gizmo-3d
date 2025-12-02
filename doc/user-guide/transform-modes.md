@@ -6,32 +6,34 @@ Guide to world and local coordinate modes in Gizmo3D.
 
 Gizmo3D supports two transform modes that control the orientation of manipulation axes:
 
-| Mode | Axes Aligned To | Use Case |
-|------|-----------------|----------|
-| `"world"` | Global coordinate system | Scene-relative manipulation |
-| `"local"` | Object's rotation | Object-relative manipulation |
+| Mode | Value | Axes Aligned To | Use Case |
+|------|-------|-----------------|----------|
+| `GizmoEnums.TransformMode.World` | 0 | Global coordinate system | Scene-relative manipulation |
+| `GizmoEnums.TransformMode.Local` | 1 | Object's rotation | Object-relative manipulation |
 
 ## Setting Transform Mode
 
-All gizmos accept a `transformMode` property:
+All gizmos accept a `transformMode` property (type: `int`):
 
 ```qml
+import Gizmo3D 1.0
+
 TranslationGizmo {
     view3d: myView3D
     targetNode: myCube
-    transformMode: "world"  // or "local"
+    transformMode: GizmoEnums.TransformMode.World
 }
 
 RotationGizmo {
     view3d: myView3D
     targetNode: myCube
-    transformMode: "local"
+    transformMode: GizmoEnums.TransformMode.Local
 }
 
 GlobalGizmo {
     view3d: myView3D
     targetNode: myCube
-    transformMode: modeSelector.currentMode
+    transformMode: modeSelector.currentMode  // int value
 }
 ```
 
@@ -122,7 +124,7 @@ The gizmo computes axis directions based on transform mode:
 
 ```qml
 readonly property var currentAxes: {
-    if (transformMode === "local" && targetNode) {
+    if (transformMode === GizmoEnums.TransformMode.Local && targetNode) {
         // Extract axes from target's quaternion rotation
         return GizmoMath.getLocalAxes(targetNode.rotation)
     } else {
@@ -141,8 +143,8 @@ readonly property var currentAxes: {
 The `transformMode` is passed in delta signals so controllers can handle it appropriately:
 
 ```qml
-// Signal includes transform mode
-signal axisTranslationDelta(int axis, string transformMode, real delta, bool snapActive)
+// Signal includes transform mode (int value from GizmoEnums.TransformMode)
+signal axisTranslationDelta(int axis, int transformMode, real delta, bool snapActive)
 ```
 
 ### Controller Handling
@@ -153,9 +155,9 @@ signal axisTranslationDelta(int axis, string transformMode, real delta, bool sna
 onAxisTranslationDelta: function(axis, transformMode, delta, snap) {
     // In world mode, delta is in world coordinates
     var pos = dragStartPos
-    if (axis === 1) pos.x += delta      // World X
-    else if (axis === 2) pos.y += delta // World Y
-    else if (axis === 3) pos.z += delta // World Z
+    if (axis === GizmoEnums.Axis.X) pos.x += delta
+    else if (axis === GizmoEnums.Axis.Y) pos.y += delta
+    else if (axis === GizmoEnums.Axis.Z) pos.z += delta
     targetNode.position = pos
 }
 ```
@@ -164,22 +166,22 @@ onAxisTranslationDelta: function(axis, transformMode, delta, snap) {
 
 ```qml
 onAxisTranslationDelta: function(axis, transformMode, delta, snap) {
-    if (transformMode === "local") {
+    if (transformMode === GizmoEnums.TransformMode.Local) {
         // Get the object's local axis in world space
         var localAxes = GizmoMath.getLocalAxes(targetNode.rotation)
         var axisDir
-        if (axis === 1) axisDir = localAxes.x
-        else if (axis === 2) axisDir = localAxes.y
-        else if (axis === 3) axisDir = localAxes.z
+        if (axis === GizmoEnums.Axis.X) axisDir = localAxes.x
+        else if (axis === GizmoEnums.Axis.Y) axisDir = localAxes.y
+        else if (axis === GizmoEnums.Axis.Z) axisDir = localAxes.z
 
         // Apply delta along local axis
         targetNode.position = dragStartPos.plus(axisDir.times(delta))
     } else {
         // World mode - direct application
         var pos = dragStartPos
-        if (axis === 1) pos.x += delta
-        else if (axis === 2) pos.y += delta
-        else if (axis === 3) pos.z += delta
+        if (axis === GizmoEnums.Axis.X) pos.x += delta
+        else if (axis === GizmoEnums.Axis.Y) pos.y += delta
+        else if (axis === GizmoEnums.Axis.Z) pos.z += delta
         targetNode.position = pos
     }
 }
@@ -193,13 +195,13 @@ Common pattern for toggling between modes:
 Row {
     RadioButton {
         text: "World"
-        checked: gizmo.transformMode === "world"
-        onClicked: gizmo.transformMode = "world"
+        checked: gizmo.transformMode === GizmoEnums.TransformMode.World
+        onClicked: gizmo.transformMode = GizmoEnums.TransformMode.World
     }
     RadioButton {
         text: "Local"
-        checked: gizmo.transformMode === "local"
-        onClicked: gizmo.transformMode = "local"
+        checked: gizmo.transformMode === GizmoEnums.TransformMode.Local
+        onClicked: gizmo.transformMode = GizmoEnums.TransformMode.Local
     }
 }
 
@@ -215,7 +217,9 @@ TranslationGizmo {
 Shortcut {
     sequence: "G"  // Common shortcut in 3D software
     onActivated: {
-        gizmo.transformMode = gizmo.transformMode === "world" ? "local" : "world"
+        gizmo.transformMode = gizmo.transformMode === GizmoEnums.TransformMode.World
+            ? GizmoEnums.TransformMode.Local
+            : GizmoEnums.TransformMode.World
     }
 }
 ```
@@ -226,7 +230,7 @@ Local mode is particularly useful for rotation:
 
 ```qml
 RotationGizmo {
-    transformMode: "local"
+    transformMode: GizmoEnums.TransformMode.Local
     // Rotation circles follow object's orientation
 }
 ```
@@ -249,7 +253,7 @@ For scale operations:
 
 ```qml
 ScaleGizmo {
-    transformMode: "local"  // Usually preferred for scaling
+    transformMode: GizmoEnums.TransformMode.Local  // Usually preferred for scaling
 }
 ```
 
@@ -260,7 +264,7 @@ The gizmo automatically repaints when the object rotates (in local mode):
 ```qml
 Connections {
     target: root.targetNode
-    enabled: root.transformMode === "local"
+    enabled: root.transformMode === GizmoEnums.TransformMode.Local
     function onRotationChanged() {
         canvas.requestPaint()
     }

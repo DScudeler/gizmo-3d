@@ -24,4 +24,13 @@ QtObject {
         World = 0,
         Local = 1
     }
+
+    // GlobalGizmo mode for selecting active gizmo type
+    enum Mode {
+        Translate = 0,
+        Rotate = 1,
+        Scale = 2,
+        Both = 3,      // Translation + Rotation
+        All = 4        // Translation + Rotation + Scale (composite mode)
+    }
 }
