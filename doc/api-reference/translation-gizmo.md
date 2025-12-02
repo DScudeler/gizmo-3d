@@ -341,10 +341,10 @@ Emitted continuously during planar drag with displacement delta.
 **Parameters**:
 - `plane` (int): The plane being dragged (`GizmoEnums.Plane.XY`, `GizmoEnums.Plane.XZ`, or `GizmoEnums.Plane.YZ`)
 - `transformMode` (int): Current transform mode (`GizmoEnums.TransformMode.World` or `GizmoEnums.TransformMode.Local`)
-- `delta` (vector3d): Displacement vector since drag started (world units)
-  - **XY plane**: `delta.x` and `delta.y` contain movement, `delta.z` is 0
-  - **XZ plane**: `delta.x` and `delta.z` contain movement, `delta.y` is 0
-  - **YZ plane**: `delta.y` and `delta.z` contain movement, `delta.x` is 0
+- `delta` (vector3d): Displacement vector since drag started (local units, consistent with axis translation)
+  - **XY plane**: `delta.x` and `delta.y` contain movement along local X and Y axes, `delta.z` is 0
+  - **XZ plane**: `delta.x` and `delta.z` contain movement along local X and Z axes, `delta.y` is 0
+  - **YZ plane**: `delta.y` and `delta.z` contain movement along local Y and Z axes, `delta.x` is 0
 - `snapActive` (bool): Whether snapping was applied to this delta
 
 **Emission Frequency**: Every mouse move during drag

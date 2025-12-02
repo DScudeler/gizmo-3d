@@ -19,7 +19,7 @@ Item {
     property Node targetNode: null
     property real gizmoSize: 100.0
     property real maxScreenSize: 150.0  // Maximum screen-space extent in pixels
-    property vector3d targetPosition: targetNode ? targetNode.position : Qt.vector3d(0, 0, 0)
+    property vector3d targetPosition: targetNode ? targetNode.scenePosition : Qt.vector3d(0, 0, 0)
     property real lineWidth: 4
 
     // Transform mode: GizmoEnums.TransformMode.World or GizmoEnums.TransformMode.Local
@@ -32,7 +32,7 @@ Item {
     // Computed local/world axes based on transform mode
     readonly property var currentAxes: {
         if (transformMode === GizmoEnums.TransformMode.Local && targetNode) {
-            return GizmoMath.getLocalAxes(targetNode.rotation)
+            return GizmoMath.getLocalAxes(targetNode.sceneRotation)
         } else {
             return {
                 x: Qt.vector3d(1, 0, 0),
@@ -106,7 +106,7 @@ Item {
 
         geometry = TranslationGeometryCalculator.calculateArrowGeometry({
             projector: projector,
-            targetPosition: targetNode.position,
+            targetPosition: targetNode.scenePosition,
             axes: currentAxes,
             gizmoSize: gizmoSize,
             maxScreenSize: maxScreenSize,
@@ -122,7 +122,7 @@ Item {
         if (!projector) return null
         return TranslationGeometryCalculator.calculateArrowGeometry({
             projector: projector,
-            targetPosition: targetNode.position,
+            targetPosition: targetNode.scenePosition,
             axes: currentAxes,
             gizmoSize: gizmoSize,
             maxScreenSize: maxScreenSize,
@@ -298,10 +298,39 @@ Item {
                 var intersection = GizmoMath.intersectRayPlane(ray.origin, ray.direction, dragStartPos, dragPlaneNormal)
 
                 if (intersection) {
-                    // Calculate delta from initial intersection to current intersection
-                    var delta = GizmoMath.vectorSubtract(intersection, dragStartIntersection)
+                    // Calculate world-space delta from initial intersection to current
+                    var worldDelta = GizmoMath.vectorSubtract(intersection, dragStartIntersection)
+                    var delta
 
-                    // Apply snap to both components
+                    if (root.transformMode === GizmoEnums.TransformMode.Local) {
+                        // Local mode: project world delta onto local axes to get local-space components
+                        var axes = root.currentAxes
+
+                        if (root.activePlane === GizmoEnums.Plane.XY) {
+                            delta = Qt.vector3d(
+                                GizmoMath.dotProduct(worldDelta, axes.x),
+                                GizmoMath.dotProduct(worldDelta, axes.y),
+                                0
+                            )
+                        } else if (root.activePlane === GizmoEnums.Plane.XZ) {
+                            delta = Qt.vector3d(
+                                GizmoMath.dotProduct(worldDelta, axes.x),
+                                0,
+                                GizmoMath.dotProduct(worldDelta, axes.z)
+                            )
+                        } else if (root.activePlane === GizmoEnums.Plane.YZ) {
+                            delta = Qt.vector3d(
+                                0,
+                                GizmoMath.dotProduct(worldDelta, axes.y),
+                                GizmoMath.dotProduct(worldDelta, axes.z)
+                            )
+                        }
+                    } else {
+                        // World mode: use world-space delta directly
+                        delta = worldDelta
+                    }
+
+                    // Apply snap
                     if (root.snapEnabled) {
                         delta = root.snapPlaneMovement(delta, root.activePlane, dragStartPos)
                     }

@@ -15,7 +15,7 @@ Item {
     property Node targetNode: null
     property real gizmoSize: 100.0
     property real maxScreenSize: 150.0  // Maximum screen-space extent in pixels
-    property vector3d targetPosition: targetNode ? targetNode.position : Qt.vector3d(0, 0, 0)
+    property vector3d targetPosition: targetNode ? targetNode.scenePosition : Qt.vector3d(0, 0, 0)
     property real lineWidth: 4
 
     // Transform mode: GizmoEnums.TransformMode.World or GizmoEnums.TransformMode.Local
@@ -28,7 +28,7 @@ Item {
     // Computed local/world axes based on transform mode
     readonly property var currentAxes: {
         if (transformMode === GizmoEnums.TransformMode.Local && targetNode) {
-            return GizmoMath.getLocalAxes(targetNode.rotation)
+            return GizmoMath.getLocalAxes(targetNode.sceneRotation)
         } else {
             return {
                 x: Qt.vector3d(1, 0, 0),
@@ -96,7 +96,7 @@ Item {
 
         geometry = ScaleGeometryCalculator.calculateHandleGeometry({
             projector: projector,
-            targetPosition: targetNode.position,
+            targetPosition: targetNode.scenePosition,
             axes: currentAxes,
             gizmoSize: gizmoSize,
             maxScreenSize: maxScreenSize,
@@ -112,7 +112,7 @@ Item {
         if (!projector) return null
         return ScaleGeometryCalculator.calculateHandleGeometry({
             projector: projector,
-            targetPosition: targetNode.position,
+            targetPosition: targetNode.scenePosition,
             axes: currentAxes,
             gizmoSize: gizmoSize,
             maxScreenSize: maxScreenSize,

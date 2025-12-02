@@ -22,13 +22,13 @@ Item {
 
     // State tracking
     property int activeAxis: GizmoEnums.Axis.None  // YZ plane (X-rotation), ZX plane (Y-rotation), XY plane (Z-rotation)
-    property vector3d targetPosition: targetNode ? targetNode.position : Qt.vector3d(0, 0, 0)
+    property vector3d targetPosition: targetNode ? targetNode.scenePosition : Qt.vector3d(0, 0, 0)
     property bool isActive: activeAxis !== GizmoEnums.Axis.None
 
     // Computed local/world axes based on transform mode
     readonly property var currentAxes: {
         if (transformMode === GizmoEnums.TransformMode.Local && targetNode) {
-            return GizmoMath.getLocalAxes(targetNode.rotation)
+            return GizmoMath.getLocalAxes(targetNode.sceneRotation)
         } else {
             return {
                 x: Qt.vector3d(1, 0, 0),
@@ -109,7 +109,7 @@ Item {
         // Calculate main geometry with temporal smoothing
         var newGeometry = RotationGeometryCalculator.calculateCircleGeometry({
             projector: projector,
-            targetPosition: targetNode.position,
+            targetPosition: targetNode.scenePosition,
             axes: axesToUse,
             gizmoSize: gizmoSize,
             maxScreenRadius: maxScreenRadius,
@@ -126,13 +126,13 @@ Item {
 
         // Calculate all 3 facing angles with the SAME projector (was 3 separate projectors)
         yzFacingAngle = RotationGeometryCalculator.calculateCameraFacingAngle(
-            targetNode.position, currentAxes.x, currentAxes.y, projector
+            targetNode.scenePosition, currentAxes.x, currentAxes.y, projector
         )
         zxFacingAngle = RotationGeometryCalculator.calculateCameraFacingAngle(
-            targetNode.position, currentAxes.y, currentAxes.z, projector
+            targetNode.scenePosition, currentAxes.y, currentAxes.z, projector
         )
         xyFacingAngle = RotationGeometryCalculator.calculateCameraFacingAngle(
-            targetNode.position, currentAxes.z, currentAxes.x, projector
+            targetNode.scenePosition, currentAxes.z, currentAxes.x, projector
         )
     }
 
@@ -144,7 +144,7 @@ Item {
         var axesToUse = (activeAxis !== GizmoEnums.Axis.None && dragStartAxes) ? dragStartAxes : currentAxes
         return RotationGeometryCalculator.calculateCircleGeometry({
             projector: projector,
-            targetPosition: targetNode.position,
+            targetPosition: targetNode.scenePosition,
             axes: axesToUse,
             gizmoSize: gizmoSize,
             maxScreenRadius: maxScreenRadius,
@@ -162,7 +162,7 @@ Item {
         var projector = View3DProjectionAdapter.createProjector(view3d)
         if (!projector) return 0
         return RotationGeometryCalculator.calculateCameraFacingAngle(
-            targetNode.position, planeNormal, referenceAxis, projector
+            targetNode.scenePosition, planeNormal, referenceAxis, projector
         )
     }
 
