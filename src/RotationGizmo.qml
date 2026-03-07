@@ -16,6 +16,7 @@ Item {
     property real gizmoSize: 80.0
     property real maxScreenRadius: 100.0  // Maximum screen-space radius in pixels
     property real inactiveArcRange: 80.0  // Visible arc range in degrees when inactive (±40°)
+    property bool shapeAntialiasing: true
 
     // Transform mode: GizmoEnums.TransformMode.World or GizmoEnums.TransformMode.Local
     property int transformMode: GizmoEnums.TransformMode.World
@@ -206,7 +207,7 @@ Item {
         )
     }
 
-    // Helper for hit testing - needs fresh geometry calculation
+    // Test helper - creates a fresh projector and calculates geometry on demand
     function calculateCircleGeometry() {
         if (!view3d || !view3d.camera || !targetNode) return null
         var projector = View3DProjectionAdapter.createProjector(view3d)
@@ -253,6 +254,7 @@ Item {
             center: root.geometry ? root.geometry.center : Qt.point(0, 0)
             color: root.xAxisColor
             lineWidth: root.activeAxis === GizmoEnums.Axis.X ? 4 : 2
+            antialiasing: root.shapeAntialiasing
 
             // Full circle with fill when active, partial arc when inactive
             partialArc: root.activeAxis !== GizmoEnums.Axis.X
@@ -271,6 +273,7 @@ Item {
             center: root.geometry ? root.geometry.center : Qt.point(0, 0)
             color: root.yAxisColor
             lineWidth: root.activeAxis === GizmoEnums.Axis.Y ? 4 : 2
+            antialiasing: root.shapeAntialiasing
 
             partialArc: root.activeAxis !== GizmoEnums.Axis.Y
             arcCenter: root.zxFacingAngle
@@ -288,6 +291,7 @@ Item {
             center: root.geometry ? root.geometry.center : Qt.point(0, 0)
             color: root.zAxisColor
             lineWidth: root.activeAxis === GizmoEnums.Axis.Z ? 4 : 2
+            antialiasing: root.shapeAntialiasing
 
             partialArc: root.activeAxis !== GizmoEnums.Axis.Z
             arcCenter: root.xyFacingAngle
@@ -304,7 +308,7 @@ Item {
     // ========================================
 
     // Helper function to check if a hit point is within the visible arc range
-    function isHitWithinArcRange(mouseX, mouseY, planeNormal, referenceAxis) {
+    function isHitWithinArcRange(mouseX, mouseY, planeNormal, referenceAxis, facingAngle) {
         // Get ray from mouse position
         var ray = GizmoMath.getCameraRay(view3d, Qt.point(mouseX, mouseY))
 
@@ -315,9 +319,6 @@ Item {
 
         // Calculate angle of hit point relative to reference axis
         var hitAngle = GizmoMath.calculatePlaneAngle(intersection, targetPosition, planeNormal, referenceAxis)
-
-        // Calculate camera-facing angle for this plane
-        var facingAngle = calculateCameraFacingAngle(planeNormal, referenceAxis)
 
         // Calculate angular difference (normalized to [-π, π])
         var angleDiff = GizmoMath.normalizeAngleDelta(hitAngle - facingAngle)
@@ -331,7 +332,7 @@ Item {
     // Geometric hit detection using circle geometry
     // Caches geometry to avoid recalculating on press
     function getHitAxis(x, y) {
-        lastHitTestGeometry = calculateCircleGeometry()
+        lastHitTestGeometry = root.geometry
         if (!lastHitTestGeometry) {
             return GizmoEnums.Axis.None
         }
@@ -343,9 +344,9 @@ Item {
         // Test each circle - use currentAxes for local mode support
         var axes = currentAxes
         var circleTests = [
-            {axis: GizmoEnums.Axis.X, points: geom.circles.yz, planeNormal: axes.x, refAxis: axes.y},  // X-rotation (YZ plane)
-            {axis: GizmoEnums.Axis.Y, points: geom.circles.zx, planeNormal: axes.y, refAxis: axes.z},  // Y-rotation (ZX plane)
-            {axis: GizmoEnums.Axis.Z, points: geom.circles.xy, planeNormal: axes.z, refAxis: axes.x}   // Z-rotation (XY plane)
+            {axis: GizmoEnums.Axis.X, points: geom.circles.yz, planeNormal: axes.x, refAxis: axes.y, facingAngle: root.yzFacingAngle},  // X-rotation (YZ plane)
+            {axis: GizmoEnums.Axis.Y, points: geom.circles.zx, planeNormal: axes.y, refAxis: axes.z, facingAngle: root.zxFacingAngle},  // Y-rotation (ZX plane)
+            {axis: GizmoEnums.Axis.Z, points: geom.circles.xy, planeNormal: axes.z, refAxis: axes.x, facingAngle: root.xyFacingAngle}   // Z-rotation (XY plane)
         ]
 
         var closestAxis = GizmoEnums.Axis.None
@@ -358,7 +359,7 @@ Item {
             if (distance <= hitThreshold && distance < closestDistance) {
                 // Check if hit is within visible arc range when inactive
                 if (activeAxis === GizmoEnums.Axis.None) {  // Currently inactive
-                    if (isHitWithinArcRange(x, y, test.planeNormal, test.refAxis)) {
+                    if (isHitWithinArcRange(x, y, test.planeNormal, test.refAxis, test.facingAngle)) {
                         closestDistance = distance
                         closestAxis = test.axis
                     }

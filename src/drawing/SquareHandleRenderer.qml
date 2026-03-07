@@ -27,13 +27,14 @@ Item {
     property color color: "#ffff00"
     property real size: 12
     property int strokeWidth: 1
+    property bool antialiasing: true
 
     // Computed properties
     readonly property real halfSize: size / 2
 
     Shape {
         anchors.fill: parent
-        layer.enabled: true
+        layer.enabled: root.antialiasing
         layer.samples: 4
 
         ShapePath {

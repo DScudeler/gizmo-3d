@@ -17,6 +17,7 @@ Item {
     property real maxScreenSize: 150.0  // Maximum screen-space extent in pixels
     property vector3d targetPosition: targetNode ? targetNode.scenePosition : Qt.vector3d(0, 0, 0)
     property real lineWidth: 4
+    property bool shapeAntialiasing: true
 
     // Transform mode: GizmoEnums.TransformMode.World or GizmoEnums.TransformMode.Local
     property int transformMode: GizmoEnums.TransformMode.World
@@ -175,7 +176,7 @@ Item {
         })
     }
 
-    // Helper for hit testing - needs fresh geometry calculation
+    // Test helper - creates a fresh projector and calculates geometry on demand
     function calculateGizmoGeometry() {
         if (!view3d || !view3d.camera || !targetNode) return null
         var projector = View3DProjectionAdapter.createProjector(view3d)
@@ -205,6 +206,7 @@ Item {
             center: root.geometry ? root.geometry.center : Qt.point(0, 0)
             color: root.uniformColor
             size: 8
+            antialiasing: root.shapeAntialiasing
         }
 
         // X axis (red) with square end
@@ -215,6 +217,7 @@ Item {
             color: root.xAxisColor
             lineWidth: root.lineWidth
             squareSize: 12
+            antialiasing: root.shapeAntialiasing
         }
 
         // Y axis (green) with square end
@@ -225,6 +228,7 @@ Item {
             color: root.yAxisColor
             lineWidth: root.lineWidth
             squareSize: 12
+            antialiasing: root.shapeAntialiasing
         }
 
         // Z axis (blue) with square end
@@ -235,13 +239,14 @@ Item {
             color: root.zAxisColor
             lineWidth: root.lineWidth
             squareSize: 12
+            antialiasing: root.shapeAntialiasing
         }
     }
 
     // Geometric hit detection (uses HitTester)
     // Caches geometry to avoid recalculating on press
     function getHitRegion(x, y) {
-        lastHitTestGeometry = calculateGizmoGeometry()
+        lastHitTestGeometry = root.geometry
         var result = HitTester.testScaleGizmoHit(Qt.point(x, y), lastHitTestGeometry, 10, 12)
 
         // Convert result format to match expected API

@@ -6,6 +6,9 @@ import QtQuick
 import QtQuick3D
 
 QtObject {
+    property var _cachedProjector: null
+    property var _cachedView3d: null
+
     /**
      * Creates a projector object that wraps a View3D instance
      * @param view3d - The View3D component to wrap
@@ -22,7 +25,11 @@ QtObject {
             return null
         }
 
-        return {
+        if (view3d === _cachedView3d && _cachedProjector && view3d.camera) {
+            return _cachedProjector
+        }
+
+        var projector = {
             view3d: view3d,
 
             projectWorldToScreen: function(worldPos) {
@@ -104,5 +111,9 @@ QtObject {
                 return forward
             }
         }
+
+        _cachedView3d = view3d
+        _cachedProjector = projector
+        return projector
     }
 }

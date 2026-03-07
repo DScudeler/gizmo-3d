@@ -32,6 +32,7 @@ Item {
     property real headAngle: Math.PI / 6
     property int capStyle: ShapePath.RoundCap
     property int joinStyle: ShapePath.RoundJoin
+    property bool antialiasing: true
 
     // Computed properties
     readonly property real angle: Math.atan2(endPoint.y - startPoint.y, endPoint.x - startPoint.x)
@@ -51,7 +52,7 @@ Item {
     // Combined arrow shape (shaft + head) - single Shape for performance
     Shape {
         anchors.fill: parent
-        layer.enabled: true
+        layer.enabled: root.antialiasing
         layer.samples: 4
 
         // Arrow shaft

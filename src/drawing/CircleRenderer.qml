@@ -32,6 +32,7 @@ Item {
     property real fillAlpha: 0.5
     property int capStyle: ShapePath.RoundCap
     property int joinStyle: ShapePath.RoundJoin
+    property bool antialiasing: true
 
     // Arc rendering options
     property bool partialArc: false
@@ -51,14 +52,12 @@ Item {
         var startAngle = arcCenter - halfRange
         var endAngle = arcCenter + halfRange
 
-        // Normalize angles to [0, 2π]
-        while (startAngle < 0) startAngle += Math.PI * 2
-        while (endAngle < 0) endAngle += Math.PI * 2
-        while (startAngle >= Math.PI * 2) startAngle -= Math.PI * 2
-        while (endAngle >= Math.PI * 2) endAngle -= Math.PI * 2
+        var twoPi = Math.PI * 2
+        startAngle = ((startAngle % twoPi) + twoPi) % twoPi
+        endAngle = ((endAngle % twoPi) + twoPi) % twoPi
 
-        var startIdx = Math.floor((startAngle / (Math.PI * 2)) * (points.length - 1))
-        var endIdx = Math.floor((endAngle / (Math.PI * 2)) * (points.length - 1))
+        var startIdx = Math.floor((startAngle / twoPi) * (points.length - 1))
+        var endIdx = Math.floor((endAngle / twoPi) * (points.length - 1))
 
         return { start: startIdx, end: endIdx }
     }
@@ -67,103 +66,93 @@ Item {
     readonly property var wedgeIndices: {
         if (!points || points.length === 0) return { start: 0, end: 0 }
 
-        var normalizedStart = arcStart
-        var normalizedEnd = arcEnd
+        var twoPi = Math.PI * 2
+        var normalizedStart = ((arcStart % twoPi) + twoPi) % twoPi
+        var normalizedEnd = ((arcEnd % twoPi) + twoPi) % twoPi
 
-        while (normalizedStart < 0) normalizedStart += Math.PI * 2
-        while (normalizedEnd < 0) normalizedEnd += Math.PI * 2
-        while (normalizedStart >= Math.PI * 2) normalizedStart -= Math.PI * 2
-        while (normalizedEnd >= Math.PI * 2) normalizedEnd -= Math.PI * 2
-
-        var startIdx = Math.floor((normalizedStart / (Math.PI * 2)) * (points.length - 1))
-        var endIdx = Math.floor((normalizedEnd / (Math.PI * 2)) * (points.length - 1))
+        var startIdx = Math.floor((normalizedStart / twoPi) * (points.length - 1))
+        var endIdx = Math.floor((normalizedEnd / twoPi) * (points.length - 1))
 
         return { start: startIdx, end: endIdx }
     }
 
-    // Computed SVG path data for the polyline
-    readonly property string polylinePath: {
-        if (!points || points.length === 0) return ""
+    // Computed point list for the polyline outline
+    readonly property var outlinePoints: {
+        if (!points || points.length === 0) return []
 
-        var segments = []
+        var result = []
         if (partialArc) {
             var startIdx = arcIndices.start
             var endIdx = arcIndices.end
 
             if (startIdx < points.length) {
-                segments.push("M " + points[startIdx].x + " " + points[startIdx].y)
-
                 if (endIdx < startIdx) {
                     // Wrap around
-                    for (var i = startIdx + 1; i < points.length; i++) {
-                        segments.push("L " + points[i].x + " " + points[i].y)
+                    for (var i = startIdx; i < points.length; i++) {
+                        result.push(Qt.point(points[i].x, points[i].y))
                     }
                     for (var j = 0; j <= endIdx; j++) {
-                        segments.push("L " + points[j].x + " " + points[j].y)
+                        result.push(Qt.point(points[j].x, points[j].y))
                     }
                 } else {
-                    for (var k = startIdx + 1; k <= endIdx; k++) {
-                        segments.push("L " + points[k].x + " " + points[k].y)
+                    for (var k = startIdx; k <= endIdx; k++) {
+                        result.push(Qt.point(points[k].x, points[k].y))
                     }
                 }
             }
         } else {
             // Full circle
-            if (points.length > 0) {
-                segments.push("M " + points[0].x + " " + points[0].y)
-                for (var m = 1; m < points.length; m++) {
-                    segments.push("L " + points[m].x + " " + points[m].y)
-                }
+            for (var m = 0; m < points.length; m++) {
+                result.push(Qt.point(points[m].x, points[m].y))
             }
         }
 
-        return segments.join(" ")
+        return result
     }
 
-    // Computed path data for filled wedge
-    readonly property string wedgePath: {
-        if (!points || points.length === 0 || !filled) return ""
+    // Computed point list for filled wedge
+    readonly property var wedgePoints: {
+        if (!points || points.length === 0 || !filled) return []
 
         var startIdx = wedgeIndices.start
         var endIdx = wedgeIndices.end
 
-        var segments = ["M " + center.x + " " + center.y]
+        var result = [Qt.point(center.x, center.y)]
 
         if (startIdx < points.length) {
-            segments.push("L " + points[startIdx].x + " " + points[startIdx].y)
-
             if (endIdx < startIdx) {
                 // Wrap around
-                for (var i = startIdx + 1; i < points.length; i++) {
-                    segments.push("L " + points[i].x + " " + points[i].y)
+                for (var i = startIdx; i < points.length; i++) {
+                    result.push(Qt.point(points[i].x, points[i].y))
                 }
                 for (var j = 0; j <= endIdx; j++) {
-                    segments.push("L " + points[j].x + " " + points[j].y)
+                    result.push(Qt.point(points[j].x, points[j].y))
                 }
             } else {
-                for (var k = startIdx + 1; k <= endIdx; k++) {
-                    segments.push("L " + points[k].x + " " + points[k].y)
+                for (var k = startIdx; k <= endIdx; k++) {
+                    result.push(Qt.point(points[k].x, points[k].y))
                 }
             }
         }
 
-        segments.push("Z")  // Close path back to center
-        return segments.join(" ")
+        // Close path back to center
+        result.push(Qt.point(center.x, center.y))
+        return result
     }
 
     // Filled wedge (rendered behind outline)
     Shape {
         anchors.fill: parent
         visible: root.filled && root.points.length > 0
-        layer.enabled: true
+        layer.enabled: root.antialiasing
         layer.samples: 4
 
         ShapePath {
             strokeColor: "transparent"
             fillColor: Qt.rgba(root.color.r, root.color.g, root.color.b, root.fillAlpha)
 
-            PathSvg {
-                path: root.wedgePath
+            PathPolyline {
+                path: root.wedgePoints
             }
         }
     }
@@ -172,7 +161,7 @@ Item {
     Shape {
         anchors.fill: parent
         visible: root.points.length > 0
-        layer.enabled: true
+        layer.enabled: root.antialiasing
         layer.samples: 4
 
         ShapePath {
@@ -182,8 +171,8 @@ Item {
             capStyle: root.capStyle
             joinStyle: root.joinStyle
 
-            PathSvg {
-                path: root.polylinePath
+            PathPolyline {
+                path: root.outlinePoints
             }
         }
     }

@@ -32,6 +32,7 @@ Item {
     property real activeAlpha: 0.5
     property int inactiveLineWidth: 2
     property int activeLineWidth: 3
+    property bool antialiasing: true
 
     // Computed properties
     readonly property real currentAlpha: active ? activeAlpha : inactiveAlpha
@@ -42,7 +43,7 @@ Item {
     Shape {
         anchors.fill: parent
         visible: root.hasValidCorners
-        layer.enabled: true
+        layer.enabled: root.antialiasing
         layer.samples: 4
 
         ShapePath {

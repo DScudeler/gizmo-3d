@@ -21,6 +21,7 @@ Item {
     property real maxScreenSize: 150.0  // Maximum screen-space extent in pixels
     property vector3d targetPosition: targetNode ? targetNode.scenePosition : Qt.vector3d(0, 0, 0)
     property real lineWidth: 4
+    property bool shapeAntialiasing: true
 
     // Transform mode: GizmoEnums.TransformMode.World or GizmoEnums.TransformMode.Local
     property int transformMode: GizmoEnums.TransformMode.World
@@ -185,7 +186,7 @@ Item {
         })
     }
 
-    // Helper for hit testing - needs fresh geometry calculation
+    // Test helper - creates a fresh projector and calculates geometry on demand
     function calculateGizmoGeometry() {
         if (!view3d || !view3d.camera || !targetNode) return null
         var projector = View3DProjectionAdapter.createProjector(view3d)
@@ -219,6 +220,7 @@ Item {
             corners: root.geometry && root.geometry.planes.xy.length === 4 ? root.geometry.planes.xy : []
             color: root.xyPlaneColor
             active: root.activePlane === GizmoEnums.Plane.XY
+            antialiasing: root.shapeAntialiasing
         }
 
         // XZ plane (magenta)
@@ -227,6 +229,7 @@ Item {
             corners: root.geometry && root.geometry.planes.xz.length === 4 ? root.geometry.planes.xz : []
             color: root.xzPlaneColor
             active: root.activePlane === GizmoEnums.Plane.XZ
+            antialiasing: root.shapeAntialiasing
         }
 
         // YZ plane (cyan)
@@ -235,6 +238,7 @@ Item {
             corners: root.geometry && root.geometry.planes.yz.length === 4 ? root.geometry.planes.yz : []
             color: root.yzPlaneColor
             active: root.activePlane === GizmoEnums.Plane.YZ
+            antialiasing: root.shapeAntialiasing
         }
 
         // X axis (red)
@@ -244,6 +248,7 @@ Item {
             endPoint: root.geometry ? root.geometry.xEnd : Qt.point(0, 0)
             color: root.xAxisColor
             lineWidth: root.lineWidth
+            antialiasing: root.shapeAntialiasing
         }
 
         // Y axis (green)
@@ -253,6 +258,7 @@ Item {
             endPoint: root.geometry ? root.geometry.yEnd : Qt.point(0, 0)
             color: root.yAxisColor
             lineWidth: root.lineWidth
+            antialiasing: root.shapeAntialiasing
         }
 
         // Z axis (blue)
@@ -262,13 +268,14 @@ Item {
             endPoint: root.geometry ? root.geometry.zEnd : Qt.point(0, 0)
             color: root.zAxisColor
             lineWidth: root.lineWidth
+            antialiasing: root.shapeAntialiasing
         }
     }
 
     // Geometric hit detection using screen-space geometry (uses HitTester)
     // Caches geometry to avoid recalculating on press
     function getHitRegion(x, y) {
-        lastHitTestGeometry = calculateGizmoGeometry()
+        lastHitTestGeometry = root.geometry
         return HitTester.testTranslationGizmoHit(Qt.point(x, y), lastHitTestGeometry, 10)
     }
 

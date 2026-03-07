@@ -64,9 +64,9 @@ QtObject {
         var center = GizmoProjection.projectWorldToScreen(targetPosition, projector)
 
         // Calculate per-plane scales by measuring both axes of each plane
-        var xAxisScale = projectAxisToScreen(targetPosition, Qt.vector3d(1, 0, 0), projector)
-        var yAxisScale = projectAxisToScreen(targetPosition, Qt.vector3d(0, 1, 0), projector)
-        var zAxisScale = projectAxisToScreen(targetPosition, Qt.vector3d(0, 0, 1), projector)
+        var xAxisScale = projectAxisToScreen(targetPosition, Qt.vector3d(1, 0, 0), projector, center)
+        var yAxisScale = projectAxisToScreen(targetPosition, Qt.vector3d(0, 1, 0), projector, center)
+        var zAxisScale = projectAxisToScreen(targetPosition, Qt.vector3d(0, 0, 1), projector, center)
 
         // Average the two axes that define each plane
         var xyPlaneScale = (xAxisScale + yAxisScale) / 2
@@ -110,37 +110,25 @@ QtObject {
 
             // Measure screen-space extent for this plane
             for (var j = 0; j < plane.points.length; j++) {
-                var dist = Math.sqrt(
-                    Math.pow(plane.points[j].x - center.x, 2) +
-                    Math.pow(plane.points[j].y - center.y, 2)
-                )
+                var dx = plane.points[j].x - center.x
+                var dy = plane.points[j].y - center.y
+                var dist = Math.sqrt(dx * dx + dy * dy)
                 maxDist = Math.max(maxDist, dist)
             }
 
-            // If this circle exceeds maximum, regenerate it with clamped radius
+            // If this circle exceeds maximum, scale existing points
             if (maxDist > maxScreenRadius) {
                 var clampScale = maxScreenRadius / maxDist
-                var clampedRadius = plane.radius * clampScale
-
-                if (plane.key === 'xy') {
-                    circlePoints.xy = generateCirclePoints(
-                        targetPosition, plane.axis1, plane.axis2,
-                        clampedRadius, segments, projector
+                for (var s = 0; s < plane.points.length; s++) {
+                    var pt = plane.points[s]
+                    plane.points[s] = Qt.point(
+                        center.x + (pt.x - center.x) * clampScale,
+                        center.y + (pt.y - center.y) * clampScale
                     )
-                    radiusXY = clampedRadius
-                } else if (plane.key === 'yz') {
-                    circlePoints.yz = generateCirclePoints(
-                        targetPosition, plane.axis1, plane.axis2,
-                        clampedRadius, segments, projector
-                    )
-                    radiusYZ = clampedRadius
-                } else if (plane.key === 'zx') {
-                    circlePoints.zx = generateCirclePointsZX(
-                        targetPosition, plane.axis1, plane.axis2,
-                        clampedRadius, segments, projector
-                    )
-                    radiusZX = clampedRadius
                 }
+                if (plane.key === 'xy') radiusXY = plane.radius * clampScale
+                else if (plane.key === 'yz') radiusYZ = plane.radius * clampScale
+                else if (plane.key === 'zx') radiusZX = plane.radius * clampScale
             }
         }
 
@@ -162,20 +150,18 @@ QtObject {
      * @param projector - Projector object
      * @returns real screen-space length
      */
-    function projectAxisToScreen(center, axis, projector) {
+    function projectAxisToScreen(center, axis, projector, centerScreen) {
         var testPoint = Qt.vector3d(
             center.x + axis.x,
             center.y + axis.y,
             center.z + axis.z
         )
 
-        var centerScreen = GizmoProjection.projectWorldToScreen(center, projector)
         var testScreen = GizmoProjection.projectWorldToScreen(testPoint, projector)
 
-        return Math.sqrt(
-            Math.pow(testScreen.x - centerScreen.x, 2) +
-            Math.pow(testScreen.y - centerScreen.y, 2)
-        )
+        var dx = testScreen.x - centerScreen.x
+        var dy = testScreen.y - centerScreen.y
+        return Math.sqrt(dx * dx + dy * dy)
     }
 
     /**
@@ -194,15 +180,12 @@ QtObject {
         var template = GeometryTemplates.getUnitCircle(segments)
 
         for (var i = 0; i < template.length; i++) {
-            var cosAngle = template[i].cos
-            var sinAngle = template[i].sin
-
-            var offset = GizmoMath.vectorAdd(
-                GizmoMath.vectorScale(axis1, cosAngle * radius),
-                GizmoMath.vectorScale(axis2, sinAngle * radius)
-            )
-            var worldPoint = GizmoMath.vectorAdd(center, offset)
-            points.push(GizmoProjection.projectWorldToScreen(worldPoint, projector))
+            var c = template[i].cos
+            var s = template[i].sin
+            var wx = center.x + axis1.x * c * radius + axis2.x * s * radius
+            var wy = center.y + axis1.y * c * radius + axis2.y * s * radius
+            var wz = center.z + axis1.z * c * radius + axis2.z * s * radius
+            points.push(GizmoProjection.projectWorldToScreen(Qt.vector3d(wx, wy, wz), projector))
         }
 
         return points
@@ -225,16 +208,13 @@ QtObject {
         var template = GeometryTemplates.getUnitCircle(segments)
 
         for (var i = 0; i < template.length; i++) {
-            var cosAngle = template[i].cos
-            var sinAngle = template[i].sin
-
+            var c = template[i].cos
+            var s = template[i].sin
             // Note: sin on X, cos on Z (matches original)
-            var offset = GizmoMath.vectorAdd(
-                GizmoMath.vectorScale(axisX, sinAngle * radius),
-                GizmoMath.vectorScale(axisZ, cosAngle * radius)
-            )
-            var worldPoint = GizmoMath.vectorAdd(center, offset)
-            points.push(GizmoProjection.projectWorldToScreen(worldPoint, projector))
+            var wx = center.x + axisX.x * s * radius + axisZ.x * c * radius
+            var wy = center.y + axisX.y * s * radius + axisZ.y * c * radius
+            var wz = center.z + axisX.z * s * radius + axisZ.z * c * radius
+            points.push(GizmoProjection.projectWorldToScreen(Qt.vector3d(wx, wy, wz), projector))
         }
 
         return points

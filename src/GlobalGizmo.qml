@@ -46,6 +46,9 @@ Item {
     // Scale-specific snap property
     property real scaleSnapIncrement: 0.1
 
+    // Shape antialiasing (layer-based MSAA on 2D shapes)
+    property bool shapeAntialiasing: true
+
     // Mode control: GizmoEnums.Mode.Translate, Rotate, Scale, Both, or All
     property int mode: GizmoEnums.Mode.Translate
 
@@ -201,6 +204,7 @@ Item {
         snapEnabled: root.snapEnabled
         snapToAbsolute: root.snapToAbsolute
         transformMode: root.transformMode
+        shapeAntialiasing: root.shapeAntialiasing
 
         // Bind scale-specific properties
         gizmoSize: root.gizmoSize
@@ -227,6 +231,7 @@ Item {
         snapEnabled: root.snapEnabled
         snapToAbsolute: root.snapToAbsolute
         transformMode: root.transformMode
+        shapeAntialiasing: root.shapeAntialiasing
 
         // Bind translation-specific properties
         gizmoSize: root.gizmoSize * 1.3
@@ -253,6 +258,7 @@ Item {
         snapEnabled: root.snapEnabled
         snapToAbsolute: root.snapToAbsolute
         transformMode: root.transformMode
+        shapeAntialiasing: root.shapeAntialiasing
 
         // Bind rotation-specific properties
         gizmoSize: root.gizmoSize
