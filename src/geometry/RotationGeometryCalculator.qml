@@ -56,7 +56,7 @@ QtObject {
         var axes = config.axes
         var gizmoSize = config.gizmoSize || 80.0
         var maxScreenRadius = config.maxScreenRadius || 100.0
-        var segments = config.segments || 64
+        var segments = config.segments || 48
         var previousRadii = config.previousRadii || null
         var smoothingFactor = config.smoothingFactor !== undefined ? config.smoothingFactor : 0.3
 

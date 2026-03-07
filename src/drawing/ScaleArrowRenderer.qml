@@ -43,8 +43,7 @@ Item {
     // Combined shape (shaft + square handle) - single Shape for performance
     Shape {
         anchors.fill: parent
-        layer.enabled: root.antialiasing
-        layer.samples: 4
+        preferredRendererType: Shape.CurveRenderer
 
         // Arrow shaft
         ShapePath {

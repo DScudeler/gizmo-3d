@@ -34,8 +34,7 @@ Item {
 
     Shape {
         anchors.fill: parent
-        layer.enabled: root.antialiasing
-        layer.samples: 4
+        preferredRendererType: Shape.CurveRenderer
 
         ShapePath {
             strokeColor: root.color

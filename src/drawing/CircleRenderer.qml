@@ -144,8 +144,7 @@ Item {
     Shape {
         anchors.fill: parent
         visible: root.filled && root.points.length > 0
-        layer.enabled: root.antialiasing
-        layer.samples: 4
+        preferredRendererType: Shape.CurveRenderer
 
         ShapePath {
             strokeColor: "transparent"
@@ -161,8 +160,7 @@ Item {
     Shape {
         anchors.fill: parent
         visible: root.points.length > 0
-        layer.enabled: root.antialiasing
-        layer.samples: 4
+        preferredRendererType: Shape.CurveRenderer
 
         ShapePath {
             strokeColor: root.color
