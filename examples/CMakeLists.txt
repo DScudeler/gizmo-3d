@@ -49,3 +49,29 @@ target_link_libraries(gizmo3d_stress_test PRIVATE
     Qt6::Quick3D
     gizmo3d
 )
+
+# Benchmark
+qt_add_executable(gizmo3d_benchmark
+    benchmark/main.cpp
+)
+
+set_source_files_properties(benchmark/main.qml PROPERTIES
+    QT_RESOURCE_ALIAS main.qml
+)
+
+qt_add_qml_module(gizmo3d_benchmark
+    URI Benchmark
+    VERSION 1.0
+    QML_FILES
+        benchmark/main.qml
+)
+
+target_compile_definitions(gizmo3d_benchmark PRIVATE QT_QML_DEBUG)
+
+target_link_libraries(gizmo3d_benchmark PRIVATE
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Quick
+    Qt6::Quick3D
+    gizmo3d
+)
