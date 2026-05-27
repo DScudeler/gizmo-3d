@@ -184,7 +184,7 @@ Item {
             axes: axesToUse,
             gizmoSize: gizmoSize,
             maxScreenRadius: maxScreenRadius,
-            segments: 64,
+            segments: 48,  // matches GeometryTemplates.defaultSegments -> uses cached unit circle
             previousRadii: _previousRadii,
             smoothingFactor: 0.3
         })
@@ -219,7 +219,7 @@ Item {
             axes: axesToUse,
             gizmoSize: gizmoSize,
             maxScreenRadius: maxScreenRadius,
-            segments: 64
+            segments: 48
         })
     }
 

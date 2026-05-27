@@ -6,15 +6,17 @@ import QtQuick
 import QtQuick3D
 
 QtObject {
-    property var _cachedProjector: null
-    property var _cachedView3d: null
+    property var _cachedProjector: null      // holds the JS projector object (not a View3D)
+    property View3D _cachedView3d: null       // typed so the QtQuick3D import is used and checked
 
     /**
-     * Creates a projector object that wraps a View3D instance
+     * Creates a projector object that wraps a View3D instance.
+     * The returned object's methods capture `view3d` by closure (not `this`), so they
+     * remain valid however they are later invoked, and stay statically type-checkable.
      * @param view3d - The View3D component to wrap
      * @returns Projector object compatible with GizmoProjection interface
      */
-    function createProjector(view3d) {
+    function createProjector(view3d: View3D): var {
         if (!view3d) {
             console.error("View3DProjectionAdapter: view3d is null")
             return null
@@ -33,19 +35,19 @@ QtObject {
             view3d: view3d,
 
             projectWorldToScreen: function(worldPos) {
-                return this.view3d.mapFrom3DScene(worldPos)
+                return view3d.mapFrom3DScene(worldPos)
             },
 
             projectScreenToWorld: function(screenPos) {
-                return this.view3d.mapTo3DScene(Qt.point(screenPos.x, screenPos.y))
+                return view3d.mapTo3DScene(Qt.point(screenPos.x, screenPos.y))
             },
 
             getCameraRay: function(screenPos) {
                 // Get two points along the ray (near and far)
-                var nearWorld = this.view3d.mapTo3DScene(Qt.point(screenPos.x, screenPos.y))
+                var nearWorld = view3d.mapTo3DScene(Qt.point(screenPos.x, screenPos.y))
 
                 // Use camera position as origin
-                var cameraPos = this.view3d.camera.scenePosition
+                var cameraPos = view3d.camera.scenePosition
 
                 // Calculate direction from camera to near point
                 var direction = Qt.vector3d(
@@ -73,13 +75,13 @@ QtObject {
             },
 
             getCameraPosition: function() {
-                return this.view3d.camera.scenePosition
+                return view3d.camera.scenePosition
             },
 
             getCameraForward: function() {
                 // Get camera's forward direction from its rotation
                 // In Qt Quick 3D, forward is -Z in local space
-                var rotation = this.view3d.camera.sceneRotation
+                var rotation = view3d.camera.sceneRotation
 
                 // Transform -Z vector by camera rotation
                 var localForward = Qt.vector3d(0, 0, -1)
