@@ -273,7 +273,10 @@ Item {
         onPressed: (mouse) => {
             if (root.targetNode) {
                 dragStartScale = root.targetNode.scale
-                dragStartPos = root.targetNode.position
+                // World-space position: the screen-projection and camera-distance math
+                // below operate in world space, so use scenePosition (not parent-relative
+                // .position, which differs when the target is nested under a transform).
+                dragStartPos = root.targetNode.scenePosition
             }
 
             var hitInfo = root.getHitRegion(mouse.x, mouse.y)

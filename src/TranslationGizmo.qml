@@ -292,7 +292,10 @@ Item {
 
         onPressed: (mouse) => {
             if (root.targetNode) {
-                dragStartPos = root.targetNode.position
+                // World-space position: drag math below uses world-space camera rays,
+                // so the axis/plane origin must be the scene (world) position, not the
+                // parent-relative .position (they differ when the target is nested).
+                dragStartPos = root.targetNode.scenePosition
             }
 
             // Pixel-perfect hit detection using color picking

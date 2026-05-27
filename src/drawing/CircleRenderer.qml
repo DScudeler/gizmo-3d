@@ -76,34 +76,32 @@ Item {
         return { start: startIdx, end: endIdx }
     }
 
-    // Computed point list for the polyline outline
+    // Computed point list for the polyline outline.
+    // points are already Qt.point (from the geometry calculator), so we reuse the
+    // element references directly instead of allocating a new Qt.point per element.
     readonly property var outlinePoints: {
         if (!points || points.length === 0) return []
 
-        var result = []
-        if (partialArc) {
-            var startIdx = arcIndices.start
-            var endIdx = arcIndices.end
+        // Full circle: pass the source array straight through (zero copy).
+        if (!partialArc) return points
 
-            if (startIdx < points.length) {
-                if (endIdx < startIdx) {
-                    // Wrap around
-                    for (var i = startIdx; i < points.length; i++) {
-                        result.push(Qt.point(points[i].x, points[i].y))
-                    }
-                    for (var j = 0; j <= endIdx; j++) {
-                        result.push(Qt.point(points[j].x, points[j].y))
-                    }
-                } else {
-                    for (var k = startIdx; k <= endIdx; k++) {
-                        result.push(Qt.point(points[k].x, points[k].y))
-                    }
+        var result = []
+        var startIdx = arcIndices.start
+        var endIdx = arcIndices.end
+
+        if (startIdx < points.length) {
+            if (endIdx < startIdx) {
+                // Wrap around
+                for (var i = startIdx; i < points.length; i++) {
+                    result.push(points[i])
                 }
-            }
-        } else {
-            // Full circle
-            for (var m = 0; m < points.length; m++) {
-                result.push(Qt.point(points[m].x, points[m].y))
+                for (var j = 0; j <= endIdx; j++) {
+                    result.push(points[j])
+                }
+            } else {
+                for (var k = startIdx; k <= endIdx; k++) {
+                    result.push(points[k])
+                }
             }
         }
 
@@ -123,14 +121,14 @@ Item {
             if (endIdx < startIdx) {
                 // Wrap around
                 for (var i = startIdx; i < points.length; i++) {
-                    result.push(Qt.point(points[i].x, points[i].y))
+                    result.push(points[i])
                 }
                 for (var j = 0; j <= endIdx; j++) {
-                    result.push(Qt.point(points[j].x, points[j].y))
+                    result.push(points[j])
                 }
             } else {
                 for (var k = startIdx; k <= endIdx; k++) {
-                    result.push(Qt.point(points[k].x, points[k].y))
+                    result.push(points[k])
                 }
             }
         }

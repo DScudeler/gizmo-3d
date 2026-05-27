@@ -26,7 +26,7 @@ QtObject {
      *     axes: {x, y, z} - Axis directions (world or local)
      *     gizmoSize: real - Base screen-space size in pixels
      *     maxScreenRadius: real - Maximum screen-space radius in pixels
-     *     segments: int - Number of segments for circle polylines (default: 64)
+     *     segments: int - Number of segments for circle polylines (default: 48)
      *     previousRadii: {xy, yz, zx} - Previous frame radii for smoothing (optional)
      *     smoothingFactor: real - Lerp factor for temporal smoothing (default: 0.3)
      *   }
@@ -185,7 +185,11 @@ QtObject {
             var wx = center.x + axis1.x * c * radius + axis2.x * s * radius
             var wy = center.y + axis1.y * c * radius + axis2.y * s * radius
             var wz = center.z + axis1.z * c * radius + axis2.z * s * radius
-            points.push(GizmoProjection.projectWorldToScreen(Qt.vector3d(wx, wy, wz), projector))
+            // Project to a 2D point: only x/y are used downstream (rendering, hit-testing),
+            // and returning Qt.point lets CircleRenderer pass the array straight to
+            // PathPolyline without re-wrapping every element each frame.
+            var screen = GizmoProjection.projectWorldToScreen(Qt.vector3d(wx, wy, wz), projector)
+            points.push(Qt.point(screen.x, screen.y))
         }
 
         return points
@@ -214,7 +218,9 @@ QtObject {
             var wx = center.x + axisX.x * s * radius + axisZ.x * c * radius
             var wy = center.y + axisX.y * s * radius + axisZ.y * c * radius
             var wz = center.z + axisX.z * s * radius + axisZ.z * c * radius
-            points.push(GizmoProjection.projectWorldToScreen(Qt.vector3d(wx, wy, wz), projector))
+            // Project to a 2D point (see generateCirclePoints) for zero-copy rendering.
+            var screen = GizmoProjection.projectWorldToScreen(Qt.vector3d(wx, wy, wz), projector)
+            points.push(Qt.point(screen.x, screen.y))
         }
 
         return points

@@ -5,11 +5,12 @@ pragma Singleton
 import QtQuick
 
 QtObject {
-    // Default segment count for circles (matches RotationGizmo default)
-    readonly property int defaultSegments: 64
+    // Default segment count for circles (matches RotationGizmo's request, so the
+    // precomputed unitCircle below is the one actually used at runtime — the cache hit)
+    readonly property int defaultSegments: 48
 
     // Precomputed unit circle with cos/sin values for each segment
-    // 65 points for 64 segments (includes closing point at angle 2π = 0)
+    // 49 points for 48 segments (includes closing point at angle 2π = 0)
     readonly property var unitCircle: _generateUnitCircle(defaultSegments)
 
     // Internal: generates unit circle template at initialization time
@@ -27,7 +28,7 @@ QtObject {
 
     /**
      * Gets unit circle template, optionally generating custom segment count
-     * @param segments - Number of segments (default: 64)
+     * @param segments - Number of segments (default: 48, returns the cached template)
      * @returns Array of {cos, sin} objects for each point
      */
     function getUnitCircle(segments) {
