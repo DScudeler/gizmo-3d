@@ -8,11 +8,13 @@ set_source_files_properties(
     View3DProjectionAdapter.qml
     MockProjection.qml
     geometry/TranslationGeometryCalculator.qml
-    geometry/RotationGeometryCalculator.qml
     geometry/ScaleGeometryCalculator.qml
     geometry/HitTester.qml
     geometry/GeometryTemplates.qml
     PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
+
+# RotationGeometryCalculator is now a C++ QML singleton (drop-in replacement for the
+# former geometry/RotationGeometryCalculator.qml) registered via QML_NAMED_ELEMENT.
 
 qt_add_qml_module(gizmo3d
     URI Gizmo3D
@@ -28,7 +30,6 @@ qt_add_qml_module(gizmo3d
         View3DProjectionAdapter.qml
         MockProjection.qml
         geometry/TranslationGeometryCalculator.qml
-        geometry/RotationGeometryCalculator.qml
         geometry/ScaleGeometryCalculator.qml
         geometry/HitTester.qml
         geometry/GeometryTemplates.qml
@@ -37,13 +38,24 @@ qt_add_qml_module(gizmo3d
         drawing/CircleRenderer.qml
         drawing/PlaneRenderer.qml
         drawing/SquareHandleRenderer.qml
+    SOURCES
+        geometry/rotationgeometrycalculator.h
+        geometry/rotationgeometrycalculator.cpp
     OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/src/Gizmo3D
     PLUGIN_TARGET gizmo3d
 )
 
+set_target_properties(gizmo3d PROPERTIES AUTOMOC ON)
+
+# So the generated qmltyperegistrations.cpp can resolve <rotationgeometrycalculator.h>
+# (moc records the basename; the header lives in geometry/).
+target_include_directories(gizmo3d PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/geometry)
+
 target_link_libraries(gizmo3d PRIVATE
     Qt6::Quick
     Qt6::Quick3D
+    Qt6::Qml
+    Qt6::Gui
 )
 
 # Install targets
